@@ -13,10 +13,60 @@ import (
 )
 
 type Peer struct {
-	PeerASN      uint32 `json:"peerASN"`
-	PeerIP       string `json:"peerIP"`
-	LocalASN     uint32 `json:"localASN"`
-	RouteChannel chan *messages.BGPMessageUpdate
+	Key              string
+	PeerASN          uint32 `json:"peerASN"`
+	PeerIP           string `json:"peerIP"`
+	LocalASN         uint32 `json:"localASN"`
+	Server           *BGPServer
+	KeepAlive        chan *messages.BGPMessageKeepAlive
+	Neighbor         *fgbgp.Neighbor
+	RouteChannel     chan *messages.BGPMessageUpdate
+	RoutesToAnnounce chan *common.RouteData
+	EOL              chan bool
+}
+
+func (p *Peer) Handler() {
+	// Wait for the peer to raise
+	<-p.KeepAlive
+main:
+	for {
+		select {
+		case route := <-p.RoutesToAnnounce:
+			pa := []messages.BGPAttributeIf{
+				messages.BGPAttribute_ORIGIN{
+					Origin: 1,
+				},
+				messages.BGPAttribute_NEXTHOP{NextHop: net.ParseIP(route.NextHop)},
+				messages.BGPAttribute_ASPATH{Segments: []messages.ASPath_Segment{
+					{
+						SType:  2,
+						ASPath: route.AsPath,
+					},
+				}},
+			}
+
+			announcement := &messages.BGPMessageUpdate{
+				PathAttributes: pa,
+			}
+
+			_, pref, _ := net.ParseCIDR(route.Prefix)
+
+			announcement.NLRI = append(announcement.NLRI, messages.NLRI_IPPrefix{
+				Prefix: *pref,
+				PathId: uint32(time.Now().UTC().Unix()),
+			})
+
+			p.Neighbor.OutQueue <- announcement
+		case <-p.EOL:
+			//log.Println(p.Neighbor.State.CurState)
+			p.Neighbor.Disconnect()
+			p.Server.PeerLock.Lock()
+			delete(p.Server.Peers, p.Key)
+			p.Server.PeerLock.Unlock()
+			break main
+		}
+	}
+	log.Println("Worker has died")
 }
 
 type BGPServer struct {
@@ -34,17 +84,23 @@ func (s *BGPServer) GetPeerFromNeigh(n *fgbgp.Neighbor) (*Peer, bool) {
 	return peer, ok
 }
 
-func (s *BGPServer) CreatePeer(request *common.CreateRequest) chan *messages.BGPMessageUpdate {
+func (s *BGPServer) CreatePeer(request *common.CreateRequest) *Peer {
 	s.PeerLock.Lock()
-	rc := make(chan *messages.BGPMessageUpdate, 128)
-	s.Peers[request.ToKey()] = &Peer{
-		PeerASN:      request.PeerASN,
-		LocalASN:     request.LocalASN,
-		PeerIP:       request.PeerIP,
-		RouteChannel: rc,
+
+	peer := &Peer{
+		Key:              request.ToKey(),
+		PeerASN:          request.PeerASN,
+		LocalASN:         request.LocalASN,
+		PeerIP:           request.PeerIP,
+		Server:           s,
+		RouteChannel:     make(chan *messages.BGPMessageUpdate, 1024),
+		KeepAlive:        make(chan *messages.BGPMessageKeepAlive, 1),
+		RoutesToAnnounce: make(chan *common.RouteData, 1024),
+		EOL:              make(chan bool, 1),
 	}
+	s.Peers[request.ToKey()] = peer
 	s.PeerLock.Unlock()
-	return rc
+	return peer
 }
 
 func (s *BGPServer) Notification(msg *messages.BGPMessageNotification, n *fgbgp.Neighbor) bool {
@@ -61,9 +117,15 @@ func (s *BGPServer) ProcessReceived(msg interface{}, n *fgbgp.Neighbor) (bool, e
 		key := n.Addr.String() + "|" + strconv.FormatUint(uint64(v.ASN), 10)
 		if peer, ok := s.Peers[key]; ok {
 			n.ASN = peer.LocalASN
+			peer.Neighbor = n
 			return true, nil
 		} else {
 			return false, nil
+		}
+	case *messages.BGPMessageKeepAlive:
+		peer, ok := s.GetPeerFromNeigh(n)
+		if ok {
+			peer.KeepAlive <- v
 		}
 	}
 	return true, nil
@@ -86,21 +148,25 @@ func (s *BGPServer) ProcessUpdateEvent(e *messages.BGPMessageUpdate, n *fgbgp.Ne
 }
 
 func (s *BGPServer) DisconnectedNeighbor(n *fgbgp.Neighbor) {
-	log.Printf("%v", n)
+	peer, ok := s.GetPeerFromNeigh(n)
+	if ok {
+		peer.EOL <- true
+	}
+	log.Printf("DISCONNECTED %v\n", n)
 }
 
 func (s *BGPServer) NewNeighbor(on *messages.BGPMessageOpen, n *fgbgp.Neighbor) bool {
-	log.Printf("Neighbor %v %v", on, n)
+	log.Printf("GOT A NEW Neighbor %v %v\n", on, n)
 	return true
 }
 
 func (s *BGPServer) OpenSend(on *messages.BGPMessageOpen, n *fgbgp.Neighbor) bool {
-	log.Printf("%v %v", on, n)
+	log.Printf("OpenSend %v %v\n", on, n)
 	return true
 }
 
 func (s *BGPServer) OpenConfirm() bool {
-	log.Printf("OpenConfirm")
+	log.Printf("OpenConfirm\n")
 	return true
 }
 
@@ -117,35 +183,4 @@ func CreateBGPServer(asn uint32, listenAddr string, identifier string) *BGPServe
 	manager.StartServers()
 
 	return server
-}
-
-func CreateRouteAnnouncement(prefixes []string, aspath []uint32, nexthop string) *messages.BGPMessageUpdate {
-
-	pa := []messages.BGPAttributeIf{
-		messages.BGPAttribute_ORIGIN{
-			Origin: 1,
-		},
-		messages.BGPAttribute_NEXTHOP{NextHop: net.ParseIP(nexthop)},
-		messages.BGPAttribute_ASPATH{Segments: []messages.ASPath_Segment{
-			{
-				SType:  2,
-				ASPath: aspath,
-			},
-		}},
-	}
-
-	path := &messages.BGPMessageUpdate{
-		PathAttributes: pa,
-	}
-
-	for i, prefix := range prefixes {
-		_, pref, _ := net.ParseCIDR(prefix)
-
-		path.NLRI = append(path.NLRI, messages.NLRI_IPPrefix{
-			Prefix: *pref,
-			PathId: uint32(time.Now().UTC().Unix()) + uint32(i),
-		})
-	}
-
-	return path
 }

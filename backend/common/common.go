@@ -25,7 +25,8 @@ type UpdateRequest struct {
 
 type RouteData struct {
 	Prefix         string   `json:"prefix"`
-	AsPath         []string `json:"asPath"`
+	AsPath         []uint32 `json:"asPath"`
+	NextHop        string   `json:"nextHop"`
 	Communities    [][]int  `json:"communities"`
 	ExtCommunities [][]int  `json:"extCommunities"`
 }
