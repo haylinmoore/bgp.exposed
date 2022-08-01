@@ -5,40 +5,17 @@
 </script>
 
 <main>
-    <div class="logo">
-        <p class="bgp">bgp</p>
-        <p class="exposed">.exposed</p>
+    <p class="banner" >BGP.exposed is a ...</p>
+
+    <div class="row">
+        <form action="/session">
+            <h3>New BGP Session</h3>
+            <Input required label="ASN" placeholder="65530" number/>
+            <Input required label="IP" placeholder="192.0.2.19"/>
+            <Input required label="Our ASN" placeholder="65510" number/>
+            <Input required label="MD5 Password" placeholder="Optional"/>
+            <Checkbox required bottomPadding label="ADD_PATH?"/>
+            <Button label="Submit"/>
+        </form>
     </div>
-
-    <h3>New BGP Session</h3>
-    <Input label="Our ASN" placeholder="65530"/>
-    <Input label="Your ASN" placeholder="65530"/>
-    <Checkbox label="ADD_PATH?"/>
-    <Button label="Submit"/>
-
-    <h3>Announcements</h3>
-    <Checkbox label="Full table?"/>
-    <Input label="Prefix" placeholder="192.0.2.0/24"/>
-    <Button label="Update"/>
 </main>
-
-<style>
-    main {
-        max-width: 900%;
-        margin: 50px auto 0;
-    }
-
-    .logo p {
-        font-size: 28pt;
-        padding: 0;
-        margin: 0;
-        width: max-content;
-    }
-
-    .exposed {
-        color: black;
-        background-color: white;
-        margin-top: 5px !important;
-        padding: 10px !important;
-    }
-</style>

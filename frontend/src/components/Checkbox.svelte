@@ -1,8 +1,9 @@
 <script>
     export let label, checked;
+    export let bottomPadding = false;
 </script>
 
-<main on:click={() => checked = !checked}>
+<main on:click={() => checked = !checked} class:bottomPadding>
     <input type="checkbox" bind:checked>
     <span>{label}</span>
 </main>
@@ -21,7 +22,6 @@
     }
 
     span {
-        font-size: 14pt;
         margin-left: 14px;
         margin-top: 5px;
         margin-bottom: 5px;
@@ -30,13 +30,17 @@
     input {
         -webkit-appearance: none;
         border: 2px solid white;
-        padding: 12px;
+        padding: 10px;
         margin: 5px 0;
     }
 
     input:checked {
         background-color: red;
         border: none;
-        padding: 14px;
+        padding: 12px;
+    }
+
+    .bottomPadding {
+        padding-bottom: 5px;
     }
 </style>
