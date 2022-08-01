@@ -35,7 +35,7 @@ func ClientHandler(w http.ResponseWriter, r *http.Request) {
 		go func() {
 			for {
 				select {
-				case val := <-peer.RouteChannel:
+				case val := <-peer.SendChan:
 					data, _ := json.Marshal(val)
 					c.WriteMessage(1, data)
 				case <-ctx.Done():

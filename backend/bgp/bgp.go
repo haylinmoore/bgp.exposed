@@ -21,7 +21,7 @@ type Peer struct {
 	Server           *BGPServer
 	KeepAlive        chan *messages.BGPMessageKeepAlive
 	Neighbor         *fgbgp.Neighbor
-	RouteChannel     chan *common.RouteData
+	SendChan         chan *common.Packet
 	RoutesToAnnounce chan *common.RouteData
 	Context          context.Context
 	Cancel           context.CancelFunc
@@ -66,12 +66,12 @@ main:
 				PathAttributes: pa,
 			}
 
-			for i, prefix := range route.Prefixes {
-				_, pref, _ := net.ParseCIDR(prefix)
+			for _, prefix := range route.Prefixes {
+				_, pref, _ := net.ParseCIDR(prefix.Prefix)
 
 				announcement.NLRI = append(announcement.NLRI, messages.NLRI_IPPrefix{
 					Prefix: *pref,
-					PathId: uint32(time.Now().UTC().Unix()) + uint32(i),
+					PathId: prefix.ID,
 				})
 			}
 			log.Println(announcement)
@@ -112,7 +112,7 @@ func (s *BGPServer) CreatePeer(request *common.CreateRequest, ctx context.Contex
 		LocalASN:         request.LocalASN,
 		PeerIP:           request.PeerIP,
 		Server:           s,
-		RouteChannel:     make(chan *common.RouteData, 1024),
+		SendChan:         make(chan *common.Packet, 1024),
 		KeepAlive:        make(chan *messages.BGPMessageKeepAlive, 1),
 		RoutesToAnnounce: make(chan *common.RouteData, 1024),
 		Context:          ctx,
@@ -169,7 +169,10 @@ func (s *BGPServer) ProcessUpdateEvent(e *messages.BGPMessageUpdate, n *fgbgp.Ne
 	for _, v := range e.NLRI {
 		prefix, ok := v.(messages.NLRI_IPPrefix)
 		if ok {
-			data.Prefixes = append(data.Prefixes, prefix.Prefix.String())
+			data.Prefixes = append(data.Prefixes, common.NLRI{
+				Prefix: prefix.Prefix.String(),
+				ID:     prefix.PathId,
+			})
 		}
 	}
 
@@ -190,7 +193,10 @@ func (s *BGPServer) ProcessUpdateEvent(e *messages.BGPMessageUpdate, n *fgbgp.Ne
 		}
 	}
 
-	peer.RouteChannel <- &data
+	peer.SendChan <- &common.Packet{
+		Type: "RouteData",
+		Data: data,
+	}
 	return true
 }
 

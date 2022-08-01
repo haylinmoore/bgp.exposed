@@ -24,13 +24,18 @@ type UpdateRequest struct {
 }
 
 type RouteData struct {
-	Withdraws      []string   `json:"withdraws"`
-	Prefixes       []string   `json:"prefixes"`
+	Withdraws      []NLRI     `json:"withdraws"`
+	Prefixes       []NLRI     `json:"prefixes"`
 	AsPath         []uint32   `json:"asPath"`
 	NextHop        string     `json:"nextHop"`
 	Communities    [][]uint16 `json:"communities"`
 	Origin         int        `json:"origin"`
 	ExtCommunities [][]uint32 `json:"extCommunities"`
+}
+
+type NLRI struct {
+	Prefix string `json:"prefix"`
+	ID     uint32 `json:"id"`
 }
 
 type FSMUpdate struct {
