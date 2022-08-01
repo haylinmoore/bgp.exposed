@@ -47,10 +47,14 @@ main:
 						ASPath: route.AsPath,
 					},
 				}},
-				messages.BGPAttribute_COMMUNITIES{
-					Communities: []uint32{65537},
-				},
 			}
+			var communities []uint32
+			for _, c := range route.Communities {
+				communities = append(communities, uint32(c[1])+(uint32(c[0])*65536))
+			}
+			pa = append(pa, messages.BGPAttribute_COMMUNITIES{
+				Communities: communities,
+			})
 
 			announcement := &messages.BGPMessageUpdate{
 				PathAttributes: pa,
@@ -168,8 +172,8 @@ func (s *BGPServer) ProcessUpdateEvent(e *messages.BGPMessageUpdate, n *fgbgp.Ne
 			data.NextHop = val.NextHop.String()
 		case messages.BGPAttribute_COMMUNITIES:
 			for _, c := range val.Communities {
-				data.Communities = append(data.Communities, []uint32{
-					c / 65536, c % 65536,
+				data.Communities = append(data.Communities, []uint16{
+					uint16(c / 65536), uint16(c % 65536),
 				})
 			}
 		case messages.BGPAttribute_ORIGIN:

@@ -27,7 +27,7 @@ type RouteData struct {
 	Prefixes       []string   `json:"prefixes"`
 	AsPath         []uint32   `json:"asPath"`
 	NextHop        string     `json:"nextHop"`
-	Communities    [][]uint32 `json:"communities"`
+	Communities    [][]uint16 `json:"communities"`
 	Origin         int        `json:"origin"`
 	ExtCommunities [][]uint32 `json:"extCommunities"`
 }

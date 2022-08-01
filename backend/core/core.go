@@ -18,9 +18,10 @@ func main() {
 	})
 
 	peer.RoutesToAnnounce <- &common.RouteData{
-		Prefixes: []string{"1.1.1.1/32", "9.9.9.0/23"},
-		AsPath:   []uint32{179, 13335},
-		NextHop:  "8.8.8.8",
+		Prefixes:    []string{"1.1.1.1/32", "9.9.9.0/23"},
+		AsPath:      []uint32{179, 13335},
+		Communities: [][]uint16{{1, 2}, {179, 2473}},
+		NextHop:     "8.8.8.8",
 	}
 
 	go peer.Handler()
