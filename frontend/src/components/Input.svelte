@@ -1,5 +1,5 @@
 <script>
-    export let value, label, placeholder, description;
+    export let value, label, placeholder;
     export let rightPadding, bottomPadding = false;
     export let wide, number, required = false;
 </script>
@@ -12,9 +12,6 @@
     {:else}
         <input type="text" {placeholder} {required} class:wide bind:value>
     {/if}
-    {#if description}
-        <p class="description">{description}</p>
-    {/if}
 </main>
 
 <style>
@@ -24,18 +21,12 @@
         color: white;
         background-color: black;
         border: 2px solid white;
-        width: 180px;
+        width: 183px;
     }
 
     p {
         font-size: 12pt;
-        margin: 10px 0;
-    }
-
-    .description {
-        color: #e4e4e4;
-        font-size: 10pt;
-        margin: 0;
+        margin: 5px 0;
     }
 
     .rightPadding {
@@ -43,7 +34,7 @@
     }
 
     .bottomPadding {
-        padding-bottom: 10px;
+        padding-bottom: 5px;
     }
 
     .wide {
