@@ -24,6 +24,7 @@ type UpdateRequest struct {
 }
 
 type RouteData struct {
+	Withdraws      []string   `json:"withdraws"`
 	Prefixes       []string   `json:"prefixes"`
 	AsPath         []uint32   `json:"asPath"`
 	NextHop        string     `json:"nextHop"`
@@ -38,17 +39,4 @@ type FSMUpdate struct {
 	KeepaliveTimer uint   `json:"keepaliveTimer"`
 	LastUpdate     uint   `json:"lastUpdate"`
 	LastKeepalive  uint   `json:"lastKeepalive"`
-}
-
-/* bi-directional route updates
-The scope implies what end is making the change,
-  scope = "server" means that the bgp.exposed backend will change the route(s) that it is announcing to the client
-    frontend websocket -> backend
-  scope = "client" the route(s) the client is sending over bgp have changed and should be reflected in the UI
-    backend -> frontend websocket
-*/
-type RouteUpdate struct {
-	Change string      `json:"change"`
-	Scope  string      `json:"scope"`
-	Routes []RouteData `json:"routes"`
 }

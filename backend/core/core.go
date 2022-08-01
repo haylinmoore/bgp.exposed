@@ -49,9 +49,9 @@ func ClientHandler(w http.ResponseWriter, r *http.Request) {
 		_, message, err := c.ReadMessage()
 		if err != nil {
 			log.Println("read:", err)
+			cancel()
 			break
 		}
-		log.Printf("recv: %s", message)
 		var packet common.Packet
 		err = json.Unmarshal(message, &packet)
 		if err != nil {
@@ -65,8 +65,13 @@ func ClientHandler(w http.ResponseWriter, r *http.Request) {
 			json.Unmarshal(data, &v)
 			peer = server.CreatePeer(&v, ctx, cancel)
 			go peer.Handler(started)
-		} else {
-			cancel()
+		}
+		if peer != nil {
+			if packet.Type == "RouteData" {
+				v := common.RouteData{}
+				json.Unmarshal(data, &v)
+				peer.RoutesToAnnounce <- &v
+			}
 		}
 
 	}

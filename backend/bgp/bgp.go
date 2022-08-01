@@ -39,6 +39,7 @@ main:
 				p.Neighbor.OutQueue <- messages.BGPMessageKeepAlive{}
 			}
 		case route := <-p.RoutesToAnnounce:
+			log.Println(route)
 			pa := []messages.BGPAttributeIf{
 				messages.BGPAttribute_ORIGIN{
 					Origin: byte(route.Origin),
@@ -51,13 +52,15 @@ main:
 					},
 				}},
 			}
-			var communities []uint32
-			for _, c := range route.Communities {
-				communities = append(communities, uint32(c[1])+(uint32(c[0])*65536))
+			if len(route.Communities) > 0 {
+				communities := []uint32{}
+				for _, c := range route.Communities {
+					communities = append(communities, uint32(c[1])+(uint32(c[0])*65536))
+				}
+				pa = append(pa, messages.BGPAttribute_COMMUNITIES{
+					Communities: communities,
+				})
 			}
-			pa = append(pa, messages.BGPAttribute_COMMUNITIES{
-				Communities: communities,
-			})
 
 			announcement := &messages.BGPMessageUpdate{
 				PathAttributes: pa,
@@ -71,7 +74,7 @@ main:
 					PathId: uint32(time.Now().UTC().Unix()) + uint32(i),
 				})
 			}
-
+			log.Println(announcement)
 			p.Neighbor.OutQueue <- announcement
 		case <-p.Context.Done():
 			//log.Println(p.Neighbor.State.CurState)
