@@ -1,51 +1,46 @@
 <script>
-    let routes = [
-        {
-            prefix: "192.0.2.0/24",
-            origin: 65510,
-            nexthop: "203.0.113.48",
-            rpki: "valid",
-            irr: true,
-        },
-        {
-            prefix: "192.0.2.0/24",
-            origin: 65510,
-            nexthop: "203.0.113.48",
-            rpki: "valid",
-            irr: false,
-        }
-    ]
+    export let routes = [];
 </script>
 
-<table>
-    <thead>
-    <tr>
-        <th>Prefix</th>
-        <th>Origin</th>
-        <th>Nexthop</th>
-        <th>RPKI</th>
-        <th>IRR</th>
-    </tr>
-    </thead>
-    <tbody>
-    {#each routes as route}
+<main>
+    <h3>Routes Received</h3>
+    <table>
+        <thead>
         <tr>
-            <td>{route.prefix}</td>
-            <td>{route.origin}</td>
-            <td>{route.nexthop}</td>
-            {#if route.rpki === "valid"}
-                <td style="color: lightgreen">Valid</td>
-            {:else if route.rpki === "notFound"}
-                <td style="color: yellow">Not Found</td>
-            {:else if route.rpki === "invalid"}
-                <td style="color: red">Invalid</td>
-            {/if}
-            {#if route.irr}
-                <td style="color: lightgreen">Found</td>
-            {:else}
-                <td style="color: red">Not Found</td>
-            {/if}
+            <th>Prefix</th>
+            <th>AS Path</th>
+            <th>Nexthop</th>
+            <th>RPKI</th>
+            <th>IRR</th>
+            <th>Communities</th>
         </tr>
-    {/each}
-    </tbody>
-</table>
+        </thead>
+        <tbody>
+        {#each routes as route}
+            <tr>
+                <td>{route.prefix}</td>
+                <td>{route.path.join(", ")}</td>
+                <td>{route.nexthop}</td>
+                {#if route.rpki === "valid"}
+                    <td style="color: lightgreen">Valid</td>
+                {:else if route.rpki === "notFound"}
+                    <td style="color: yellow">Not Found</td>
+                {:else if route.rpki === "invalid"}
+                    <td style="color: red">Invalid</td>
+                {/if}
+                {#if route.irr}
+                    <td style="color: lightgreen">Found</td>
+                {:else}
+                    <td style="color: red">Not Found</td>
+                {/if}
+                <td>
+                    {#each route.communities as community}
+                        {community}
+                        <br>
+                    {/each}
+                </td>
+            </tr>
+        {/each}
+        </tbody>
+    </table>
+</main>
