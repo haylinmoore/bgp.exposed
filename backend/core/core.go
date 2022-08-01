@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"log"
@@ -27,7 +28,7 @@ func ClientHandler(w http.ResponseWriter, r *http.Request) {
 	var peer *bgp.Peer
 
 	started := make(chan bool, 1)
-	killListener := make(chan bool, 1)
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		<-started
 
@@ -37,7 +38,7 @@ func ClientHandler(w http.ResponseWriter, r *http.Request) {
 				case val := <-peer.RouteChannel:
 					data, _ := json.Marshal(val)
 					c.WriteMessage(1, data)
-				case <-killListener:
+				case <-ctx.Done():
 					return
 				}
 			}
@@ -62,8 +63,10 @@ func ClientHandler(w http.ResponseWriter, r *http.Request) {
 		if peer == nil && packet.Type == "CreateRequest" {
 			v := common.CreateRequest{}
 			json.Unmarshal(data, &v)
-			peer = server.CreatePeer(&v)
+			peer = server.CreatePeer(&v, ctx, cancel)
 			go peer.Handler(started)
+		} else {
+			cancel()
 		}
 
 	}

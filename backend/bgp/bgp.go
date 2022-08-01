@@ -1,6 +1,7 @@
 package bgp
 
 import (
+	"context"
 	"log"
 	"net"
 	"strconv"
@@ -22,7 +23,8 @@ type Peer struct {
 	Neighbor         *fgbgp.Neighbor
 	RouteChannel     chan *common.RouteData
 	RoutesToAnnounce chan *common.RouteData
-	EOL              chan bool
+	Context          context.Context
+	Cancel           context.CancelFunc
 }
 
 func (p *Peer) Handler(started chan bool) {
@@ -71,7 +73,7 @@ main:
 			}
 
 			p.Neighbor.OutQueue <- announcement
-		case <-p.EOL:
+		case <-p.Context.Done():
 			//log.Println(p.Neighbor.State.CurState)
 			p.Neighbor.Disconnect()
 			p.Server.PeerLock.Lock()
@@ -98,7 +100,7 @@ func (s *BGPServer) GetPeerFromNeigh(n *fgbgp.Neighbor) (*Peer, bool) {
 	return peer, ok
 }
 
-func (s *BGPServer) CreatePeer(request *common.CreateRequest) *Peer {
+func (s *BGPServer) CreatePeer(request *common.CreateRequest, ctx context.Context, cancel context.CancelFunc) *Peer {
 	s.PeerLock.Lock()
 
 	peer := &Peer{
@@ -110,7 +112,8 @@ func (s *BGPServer) CreatePeer(request *common.CreateRequest) *Peer {
 		RouteChannel:     make(chan *common.RouteData, 1024),
 		KeepAlive:        make(chan *messages.BGPMessageKeepAlive, 1),
 		RoutesToAnnounce: make(chan *common.RouteData, 1024),
-		EOL:              make(chan bool, 16),
+		Context:          ctx,
+		Cancel:           cancel,
 	}
 	s.Peers[request.ToKey()] = peer
 	s.PeerLock.Unlock()
@@ -191,11 +194,7 @@ func (s *BGPServer) ProcessUpdateEvent(e *messages.BGPMessageUpdate, n *fgbgp.Ne
 func (s *BGPServer) DisconnectedNeighbor(n *fgbgp.Neighbor) {
 	peer, ok := s.GetPeerFromNeigh(n)
 	if ok {
-		peer.EOL <- true
-		peer.EOL <- true
-		peer.EOL <- true
-		peer.EOL <- true
-		peer.EOL <- true
+		peer.Cancel()
 	}
 	log.Printf("DISCONNECTED %v\n", n)
 }
