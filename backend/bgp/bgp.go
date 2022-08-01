@@ -2,6 +2,7 @@ package bgp
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/hamptonmoore/bgp.exposed/backend/common"
 	gobgp "github.com/osrg/gobgp/v3/api"
+	"github.com/osrg/gobgp/v3/pkg/apiutil"
+	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -30,9 +33,9 @@ func CreateGoBGPServer(host string, port string, bgpPort int32, routerID string,
 	}
 	server := gobgp.NewGobgpApiClient(conn)
 	// server.StopBgp(ctx, &gobgp.StopBgpRequest{})
-	server.StartBgp(ctx, &gobgp.StartBgpRequest{
+	_, err = server.StartBgp(ctx, &gobgp.StartBgpRequest{
 		Global: &gobgp.Global{
-			Asn:             asn,
+			Asn:             1001,
 			RouterId:        routerID,
 			ListenPort:      bgpPort,
 			ListenAddresses: []string{"0.0.0.0"},
@@ -42,7 +45,7 @@ func CreateGoBGPServer(host string, port string, bgpPort int32, routerID string,
 	return GoBGPServer{
 		Connection: conn,
 		Server:     server,
-	}, nil
+	}, err
 }
 
 type Downstream struct {
@@ -57,21 +60,65 @@ func CreateDownstream(creation common.CreateRequest, server GoBGPServer) Downstr
 		Create: creation,
 	}
 
-	down.Client.AddPeer(context.Background(), &gobgp.AddPeerRequest{
+	rd, _ := bgp.ParseRouteDistinguisher("0:0")
+	v, _ := apiutil.MarshalRD(rd)
+
+	_, err := down.Client.AddVrf(context.Background(), &gobgp.AddVrfRequest{
+		Vrf: &gobgp.Vrf{
+			Name: "100",
+			Rd:   v,
+			Id:   100,
+		},
+	})
+	if err != nil {
+		fmt.Println(err)
+	}
+	_, err = down.Client.AddPeer(context.Background(), &gobgp.AddPeerRequest{
 		Peer: &gobgp.Peer{
 			Conf: &gobgp.PeerConf{
 				PeerAsn:         down.Create.PeerASN,
 				LocalAsn:        down.Create.LocalASN,
 				NeighborAddress: down.Create.PeerIP,
 				RemovePrivate:   gobgp.RemovePrivate_REMOVE_NONE,
+				Vrf:             "100",
+			},
+			State: &gobgp.PeerState{
+				PeerAsn:  down.Create.PeerASN,
+				LocalAsn: down.Create.LocalASN,
+			},
+			ApplyPolicy: &gobgp.ApplyPolicy{
+				ImportPolicy: &gobgp.PolicyAssignment{
+					Direction: gobgp.PolicyDirection_IMPORT,
+					// Policies: []*gobgp.Policy{
+					// 	{
+					// 		Name: "AddImportCommunity",
+					// 		Statements: []*gobgp.Statement{
+					// 			{
+					// 				Name: "AddImportCommunity",
+					// 				Actions: &gobgp.Actions{
+					// 					Community: &gobgp.CommunityAction{
+					// 						Type:        gobgp.CommunityAction_ADD,
+					// 						Communities: []string{"100:100"},
+					// 					},
+					// 				},
+					// 			},
+					// 		},
+					// 	},
+					// },
+					DefaultAction: gobgp.RouteAction_ACCEPT,
+				},
 			},
 		},
 	})
 
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	return down
 }
 
-func (d Downstream) SubscribeToPeer(channel chan *gobgp.Peer) error {
+func (d Downstream) SubscribeToPeer(channel chan gobgp.Peer) error {
 	watch, err := d.Client.WatchEvent(context.Background(), &gobgp.WatchEventRequest{
 		Peer: &gobgp.WatchEventRequest_Peer{},
 	})
@@ -92,7 +139,8 @@ func (d Downstream) SubscribeToPeer(channel chan *gobgp.Peer) error {
 			log.Println("Got peer update")
 			log.Println(s)
 			if s.Conf.LocalAsn == d.Create.LocalASN && s.Conf.PeerAsn == d.Create.PeerASN && s.Conf.NeighborAddress == d.Create.PeerIP {
-				channel <- s
+				log.Println("Matches")
+				channel <- *s
 			}
 		}
 	}

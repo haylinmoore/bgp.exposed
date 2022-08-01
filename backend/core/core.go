@@ -16,13 +16,13 @@ func main() {
 	}
 
 	create := common.CreateRequest{
-		LocalASN: 1001,
-		PeerASN:  1002,
-		PeerIP:   "127.0.0.1",
+		LocalASN: 64512,
+		PeerASN:  923,
+		PeerIP:   "198.51.100.1",
 	}
-	down := bgp.CreateDownstream(create, server)
 
-	peerUpdate := make(chan *gobgp.Peer, 12)
+	down := bgp.CreateDownstream(create, server)
+	peerUpdate := make(chan gobgp.Peer, 128)
 	go down.SubscribeToPeer(peerUpdate)
 	if err != nil {
 		log.Fatal("Subscribe failed", err)
