@@ -25,9 +25,10 @@ type Peer struct {
 	EOL              chan bool
 }
 
-func (p *Peer) Handler() {
+func (p *Peer) Handler(started chan bool) {
 	// Wait for the peer to raise
 	<-p.KeepAlive
+	started <- true
 main:
 	for {
 		select {
@@ -109,7 +110,7 @@ func (s *BGPServer) CreatePeer(request *common.CreateRequest) *Peer {
 		RouteChannel:     make(chan *common.RouteData, 1024),
 		KeepAlive:        make(chan *messages.BGPMessageKeepAlive, 1),
 		RoutesToAnnounce: make(chan *common.RouteData, 1024),
-		EOL:              make(chan bool, 1),
+		EOL:              make(chan bool, 16),
 	}
 	s.Peers[request.ToKey()] = peer
 	s.PeerLock.Unlock()
@@ -190,6 +191,10 @@ func (s *BGPServer) ProcessUpdateEvent(e *messages.BGPMessageUpdate, n *fgbgp.Ne
 func (s *BGPServer) DisconnectedNeighbor(n *fgbgp.Neighbor) {
 	peer, ok := s.GetPeerFromNeigh(n)
 	if ok {
+		peer.EOL <- true
+		peer.EOL <- true
+		peer.EOL <- true
+		peer.EOL <- true
 		peer.EOL <- true
 	}
 	log.Printf("DISCONNECTED %v\n", n)
