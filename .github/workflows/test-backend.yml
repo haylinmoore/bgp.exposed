@@ -1,0 +1,29 @@
+name: Test Backend
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test-frontend:
+    name: Test Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.18
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          working-directory: backend
+
+      - name: Get dependencies
+        run: go get -v -t -d ./...
+
+      - name: go test
+        run: go test -p 1 -v -race -covermode=atomic ./...
