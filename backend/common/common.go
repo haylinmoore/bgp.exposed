@@ -24,11 +24,20 @@ type UpdateRequest struct {
 }
 
 type RouteData struct {
-	Prefix         string   `json:"prefix"`
-	AsPath         []uint32 `json:"asPath"`
-	NextHop        string   `json:"nextHop"`
-	Communities    [][]int  `json:"communities"`
-	ExtCommunities [][]int  `json:"extCommunities"`
+	Prefixes       []string   `json:"prefixes"`
+	AsPath         []uint32   `json:"asPath"`
+	NextHop        string     `json:"nextHop"`
+	Communities    [][]uint16 `json:"communities"`
+	Origin         int        `json:"origin"`
+	ExtCommunities [][]uint32 `json:"extCommunities"`
+}
+
+type FSMUpdate struct {
+	State          string `json:"state"`
+	HoldTimer      uint   `json:"holdTimer"`
+	KeepaliveTimer uint   `json:"keepaliveTimer"`
+	LastUpdate     uint   `json:"lastUpdate"`
+	LastKeepalive  uint   `json:"lastKeepalive"`
 }
 
 /* bi-directional route updates

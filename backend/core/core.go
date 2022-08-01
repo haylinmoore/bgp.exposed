@@ -1,7 +1,7 @@
 package main
 
 import (
-	"time"
+	"log"
 
 	"github.com/hamptonmoore/bgp.exposed/backend/bgp"
 	"github.com/hamptonmoore/bgp.exposed/backend/common"
@@ -18,14 +18,15 @@ func main() {
 	})
 
 	peer.RoutesToAnnounce <- &common.RouteData{
-		Prefix:  "1.1.1.1/32",
-		AsPath:  []uint32{179, 13335},
-		NextHop: "8.8.8.8",
+		Prefixes:    []string{"1.1.1.1/32", "9.9.9.0/23"},
+		AsPath:      []uint32{179, 13335},
+		Communities: [][]uint16{{1, 2}, {179, 2473}},
+		NextHop:     "8.8.8.8",
 	}
 
 	go peer.Handler()
 
 	for {
-		time.Sleep(time.Second * 10)
+		log.Println(<-peer.RouteChannel)
 	}
 }
