@@ -1,5 +1,7 @@
 package common
 
+import "strconv"
+
 type Packet struct {
 	Type string      `json:"type"`
 	Data interface{} `json:"data"` // Either CreateRequest, UpdateRequest, RouteUpdate
@@ -9,6 +11,10 @@ type CreateRequest struct {
 	PeerASN  uint32 `json:"peerASN"`
 	PeerIP   string `json:"peerIP"`
 	LocalASN uint32 `json:"localASN"`
+}
+
+func (c *CreateRequest) ToKey() string {
+	return c.PeerIP + "|" + strconv.FormatUint(uint64(c.PeerASN), 10)
 }
 
 type UpdateRequest struct {

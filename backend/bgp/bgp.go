@@ -1,148 +1,151 @@
 package bgp
 
 import (
-	"context"
-	"fmt"
-	"io"
 	"log"
 	"net"
+	"strconv"
+	"sync"
 	"time"
 
+	"github.com/bgptools/fgbgp/messages"
+	fgbgp "github.com/bgptools/fgbgp/server"
 	"github.com/hamptonmoore/bgp.exposed/backend/common"
-	gobgp "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/apiutil"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
-type GoBGPServer struct {
-	Connection grpc.ClientConnInterface
-	Server     gobgp.GobgpApiClient
+type Peer struct {
+	PeerASN      uint32 `json:"peerASN"`
+	PeerIP       string `json:"peerIP"`
+	LocalASN     uint32 `json:"localASN"`
+	RouteChannel chan *messages.BGPMessageUpdate
 }
 
-func CreateGoBGPServer(host string, port string, bgpPort int32, routerID string, asn uint32) (GoBGPServer, error) {
-	grpcOpts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock()}
-	ctx := context.Background()
-	target := net.JoinHostPort(host, port)
-	cc, _ := context.WithTimeout(ctx, time.Second)
-
-	conn, err := grpc.DialContext(cc, target, grpcOpts...)
-	if err != nil {
-		return GoBGPServer{}, err
-	}
-	server := gobgp.NewGobgpApiClient(conn)
-	// server.StopBgp(ctx, &gobgp.StopBgpRequest{})
-	_, err = server.StartBgp(ctx, &gobgp.StartBgpRequest{
-		Global: &gobgp.Global{
-			Asn:             1001,
-			RouterId:        routerID,
-			ListenPort:      bgpPort,
-			ListenAddresses: []string{"0.0.0.0"},
-		},
-	})
-
-	return GoBGPServer{
-		Connection: conn,
-		Server:     server,
-	}, err
+type BGPServer struct {
+	Fgbgp    *fgbgp.Manager
+	PeerLock sync.RWMutex
+	Peers    map[string]*Peer
 }
 
-type Downstream struct {
-	Client gobgp.GobgpApiClient
-	Create common.CreateRequest
+func (s *BGPServer) GetPeerFromNeigh(n *fgbgp.Neighbor) (*Peer, bool) {
+	s.PeerLock.Lock()
+	key := n.Addr.String() + "|" + strconv.FormatUint(uint64(n.PeerASN), 10)
+	defer s.PeerLock.Unlock()
+
+	peer, ok := s.Peers[key]
+	return peer, ok
 }
 
-func CreateDownstream(creation common.CreateRequest, server GoBGPServer) Downstream {
-	client := gobgp.NewGobgpApiClient(server.Connection)
-	down := Downstream{
-		Client: client,
-		Create: creation,
+func (s *BGPServer) CreatePeer(request *common.CreateRequest) chan *messages.BGPMessageUpdate {
+	s.PeerLock.Lock()
+	rc := make(chan *messages.BGPMessageUpdate, 128)
+	s.Peers[request.ToKey()] = &Peer{
+		PeerASN:      request.PeerASN,
+		LocalASN:     request.LocalASN,
+		PeerIP:       request.PeerIP,
+		RouteChannel: rc,
 	}
-
-	rd, _ := bgp.ParseRouteDistinguisher("0:0")
-	v, _ := apiutil.MarshalRD(rd)
-
-	_, err := down.Client.AddVrf(context.Background(), &gobgp.AddVrfRequest{
-		Vrf: &gobgp.Vrf{
-			Name: "100",
-			Rd:   v,
-			Id:   100,
-		},
-	})
-	if err != nil {
-		fmt.Println(err)
-	}
-	_, err = down.Client.AddPeer(context.Background(), &gobgp.AddPeerRequest{
-		Peer: &gobgp.Peer{
-			Conf: &gobgp.PeerConf{
-				PeerAsn:         down.Create.PeerASN,
-				LocalAsn:        down.Create.LocalASN,
-				NeighborAddress: down.Create.PeerIP,
-				RemovePrivate:   gobgp.RemovePrivate_REMOVE_NONE,
-				Vrf:             "100",
-			},
-			State: &gobgp.PeerState{
-				PeerAsn:  down.Create.PeerASN,
-				LocalAsn: down.Create.LocalASN,
-			},
-			ApplyPolicy: &gobgp.ApplyPolicy{
-				ImportPolicy: &gobgp.PolicyAssignment{
-					Direction: gobgp.PolicyDirection_IMPORT,
-					// Policies: []*gobgp.Policy{
-					// 	{
-					// 		Name: "AddImportCommunity",
-					// 		Statements: []*gobgp.Statement{
-					// 			{
-					// 				Name: "AddImportCommunity",
-					// 				Actions: &gobgp.Actions{
-					// 					Community: &gobgp.CommunityAction{
-					// 						Type:        gobgp.CommunityAction_ADD,
-					// 						Communities: []string{"100:100"},
-					// 					},
-					// 				},
-					// 			},
-					// 		},
-					// 	},
-					// },
-					DefaultAction: gobgp.RouteAction_ACCEPT,
-				},
-			},
-		},
-	})
-
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	return down
+	s.PeerLock.Unlock()
+	return rc
 }
 
-func (d Downstream) SubscribeToPeer(channel chan gobgp.Peer) error {
-	watch, err := d.Client.WatchEvent(context.Background(), &gobgp.WatchEventRequest{
-		Peer: &gobgp.WatchEventRequest_Peer{},
-	})
+func (s *BGPServer) Notification(msg *messages.BGPMessageNotification, n *fgbgp.Neighbor) bool {
+	log.Printf("Notification: %v", msg)
+	return true
+}
 
-	if err != nil {
-		return err
-	}
-
-	for {
-		r, err := watch.Recv()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-		if p := r.GetPeer(); p != nil && p.Type == gobgp.WatchEventResponse_PeerEvent_STATE {
-			s := p.Peer
-			log.Println("Got peer update")
-			log.Println(s)
-			if s.Conf.LocalAsn == d.Create.LocalASN && s.Conf.PeerAsn == d.Create.PeerASN && s.Conf.NeighborAddress == d.Create.PeerIP {
-				log.Println("Matches")
-				channel <- *s
-			}
+func (s *BGPServer) ProcessReceived(msg interface{}, n *fgbgp.Neighbor) (bool, error) {
+	log.Printf("ProcessReceived: %s", msg)
+	switch v := msg.(type) {
+	case *messages.BGPMessageOpen:
+		s.PeerLock.Lock()
+		defer s.PeerLock.Unlock()
+		key := n.Addr.String() + "|" + strconv.FormatUint(uint64(v.ASN), 10)
+		if peer, ok := s.Peers[key]; ok {
+			n.ASN = peer.LocalASN
+			return true, nil
+		} else {
+			return false, nil
 		}
 	}
-	return nil
+	return true, nil
+}
+
+func (s *BGPServer) ProcessSend(v interface{}, n *fgbgp.Neighbor) (bool, error) {
+	log.Printf("ProcessSend: %v", v)
+	return true, nil
+}
+
+func (s *BGPServer) ProcessUpdateEvent(e *messages.BGPMessageUpdate, n *fgbgp.Neighbor) (add bool) {
+	peer, exists := s.GetPeerFromNeigh(n)
+	if !exists {
+		log.Println("PEER DOESN'T EXIST??", n.Addr.String(), n.PeerASN)
+		return false
+	}
+
+	peer.RouteChannel <- e
+	return true
+}
+
+func (s *BGPServer) DisconnectedNeighbor(n *fgbgp.Neighbor) {
+	log.Printf("%v", n)
+}
+
+func (s *BGPServer) NewNeighbor(on *messages.BGPMessageOpen, n *fgbgp.Neighbor) bool {
+	log.Printf("Neighbor %v %v", on, n)
+	return true
+}
+
+func (s *BGPServer) OpenSend(on *messages.BGPMessageOpen, n *fgbgp.Neighbor) bool {
+	log.Printf("%v %v", on, n)
+	return true
+}
+
+func (s *BGPServer) OpenConfirm() bool {
+	log.Printf("OpenConfirm")
+	return true
+}
+
+func CreateBGPServer(asn uint32, listenAddr string, identifier string) *BGPServer {
+	manager := fgbgp.NewManager(asn, net.ParseIP(identifier), false, false)
+	manager.UseDefaultUpdateHandler(10)
+	server := &BGPServer{Fgbgp: manager, Peers: make(map[string]*Peer)}
+	manager.SetEventHandler(server)
+	manager.SetUpdateEventHandler(server)
+	err := manager.NewServer(listenAddr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	manager.StartServers()
+
+	return server
+}
+
+func CreateRouteAnnouncement(prefixes []string, aspath []uint32, nexthop string) *messages.BGPMessageUpdate {
+
+	pa := []messages.BGPAttributeIf{
+		messages.BGPAttribute_ORIGIN{
+			Origin: 1,
+		},
+		messages.BGPAttribute_NEXTHOP{NextHop: net.ParseIP(nexthop)},
+		messages.BGPAttribute_ASPATH{Segments: []messages.ASPath_Segment{
+			{
+				SType:  2,
+				ASPath: aspath,
+			},
+		}},
+	}
+
+	path := &messages.BGPMessageUpdate{
+		PathAttributes: pa,
+	}
+
+	for i, prefix := range prefixes {
+		_, pref, _ := net.ParseCIDR(prefix)
+
+		path.NLRI = append(path.NLRI, messages.NLRI_IPPrefix{
+			Prefix: *pref,
+			PathId: uint32(time.Now().UTC().Unix()) + uint32(i),
+		})
+	}
+
+	return path
 }
