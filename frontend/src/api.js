@@ -6,10 +6,18 @@ export function connect() {
     ws.onopen = function () {
         console.log("ws connected");
     }
+
+    ws.onerror = function (err) {
+        console.log("ws error", err);
+    }
+
+    ws.onclose = function () {
+        console.log("ws closed");
+    }
 }
 
 function send(o) {
-    console.log(o)
+    console.log("Sending:", o)
     ws.send(JSON.stringify(o));
 }
 
@@ -60,7 +68,7 @@ export function routeDataListener() {
 }
 
 export function addAnnouncement(prefix, path, nexthop, origin) {
-    ws.send(JSON.stringify({
+    send({
         type: "RouteData",
         data: {
             prefixes: [{prefix: prefix, id: new Date().getUTCMilliseconds()}],
@@ -68,5 +76,5 @@ export function addAnnouncement(prefix, path, nexthop, origin) {
             origin: origin,
             nextHop: nexthop,
         },
-    }))
+    });
 }

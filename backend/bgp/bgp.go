@@ -2,7 +2,6 @@ package bgp
 
 import (
 	"context"
-	"log"
 	"net"
 	"strconv"
 	"sync"
@@ -11,6 +10,7 @@ import (
 	"github.com/bgptools/fgbgp/messages"
 	fgbgp "github.com/bgptools/fgbgp/server"
 	"github.com/hamptonmoore/bgp.exposed/backend/common"
+	log "github.com/sirupsen/logrus"
 )
 
 type Peer struct {
@@ -104,6 +104,8 @@ func (s *BGPServer) GetPeerFromNeigh(n *fgbgp.Neighbor) (*Peer, bool) {
 }
 
 func (s *BGPServer) CreatePeer(request *common.CreateRequest, ctx context.Context, cancel context.CancelFunc) *Peer {
+	log.Debugf("Creating peer %s", request.PeerIP)
+
 	s.PeerLock.Lock()
 
 	peer := &Peer{
