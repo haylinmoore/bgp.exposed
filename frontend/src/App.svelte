@@ -80,11 +80,12 @@
 
     function addAnnouncement() {
         let pathArray = newAnnouncementPath.split(",").map(x => parseInt(x.trim()));
+        let routeID = new Date().getMilliseconds();  // TODO: Better ID source
 
         socket.send(JSON.stringify({
             type: "RouteData",
             data: {
-                prefixes: [{prefix: newAnnouncementPrefix, id: new Date().getMilliseconds()}], // TODO: Better ID source
+                prefixes: [{prefix: newAnnouncementPrefix, id: routeID}],
                 asPath: pathArray,
                 nextHop: newAnnouncementNextHop,
                 origin: 0, // TODO
@@ -92,6 +93,7 @@
         }));
 
         announcements.push({
+            id: routeID,
             prefix: newAnnouncementPrefix,
             path: pathArray,
             nexthop: newAnnouncementNextHop,
@@ -112,6 +114,15 @@
                 addPath: addPath,
                 fullTable: fullTable,
             }
+        }));
+    }
+
+    function deleteAnnouncement(route) {
+        socket.send(JSON.stringify({
+            type: "RouteData",
+            data: {
+                prefixes: [{prefix: route.prefix, id: route.id}],
+            },
         }));
     }
 </script>
@@ -185,7 +196,7 @@
             </div>
 
             <div>
-                <AnnouncementsTable bind:announcements/>
+                <AnnouncementsTable bind:announcements deleteCallback={deleteAnnouncement}/>
                 <ReceivedRoutesTable bind:receivedRoutes/>
             </div>
         </div>

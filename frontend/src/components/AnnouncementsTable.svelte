@@ -1,5 +1,6 @@
 <script>
    export let announcements = [];
+   export let deleteCallback = function () {};
 </script>
 
 <main>
@@ -31,8 +32,9 @@
                 </td>
                 <td class="delete" on:click={() => {
                     if (confirm("Are you sure you want to remove this announcement? (" + route.prefix + ")")) {
-                        // TODO
+                        deleteCallback(route);
                         announcements.splice(i, 1);
+                        announcements = announcements; // Trigger rerender
                     }
                 }}>-</td>
             </tr>
