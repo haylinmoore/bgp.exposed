@@ -40,39 +40,50 @@ main:
 			}
 		case route := <-p.RoutesToAnnounce:
 			log.Println(route)
-			pa := []messages.BGPAttributeIf{
-				messages.BGPAttribute_ORIGIN{
-					Origin: byte(route.Origin),
-				},
-				messages.BGPAttribute_NEXTHOP{NextHop: net.ParseIP(route.NextHop)},
-				messages.BGPAttribute_ASPATH{Segments: []messages.ASPath_Segment{
-					{
-						SType:  2,
-						ASPath: route.AsPath,
-					},
-				}},
-			}
-			if len(route.Communities) > 0 {
-				communities := []uint32{}
-				for _, c := range route.Communities {
-					communities = append(communities, uint32(c[1])+(uint32(c[0])*65536))
+			announcement := &messages.BGPMessageUpdate{}
+			if len(route.Withdraws) > 0 {
+				for _, prefix := range route.Withdraws {
+					_, pref, _ := net.ParseCIDR(prefix.Prefix)
+
+					announcement.WithdrawnRoutes = append(announcement.WithdrawnRoutes, messages.NLRI_IPPrefix{
+						Prefix: *pref,
+						PathId: prefix.ID,
+					})
 				}
-				pa = append(pa, messages.BGPAttribute_COMMUNITIES{
-					Communities: communities,
-				})
 			}
+			if len(route.Prefixes) > 0 {
+				pa := []messages.BGPAttributeIf{
+					messages.BGPAttribute_ORIGIN{
+						Origin: byte(route.Origin),
+					},
+					messages.BGPAttribute_NEXTHOP{NextHop: net.ParseIP(route.NextHop)},
+					messages.BGPAttribute_ASPATH{Segments: []messages.ASPath_Segment{
+						{
+							SType:  2,
+							ASPath: route.AsPath,
+						},
+					}},
+				}
+				if len(route.Communities) > 0 {
+					communities := []uint32{}
+					for _, c := range route.Communities {
+						communities = append(communities, uint32(c[1])+(uint32(c[0])*65536))
+					}
+					pa = append(pa, messages.BGPAttribute_COMMUNITIES{
+						Communities: communities,
+					})
+				}
 
-			announcement := &messages.BGPMessageUpdate{
-				PathAttributes: pa,
-			}
+				announcement.PathAttributes = pa
 
-			for _, prefix := range route.Prefixes {
-				_, pref, _ := net.ParseCIDR(prefix.Prefix)
+				for _, prefix := range route.Prefixes {
+					_, pref, _ := net.ParseCIDR(prefix.Prefix)
 
-				announcement.NLRI = append(announcement.NLRI, messages.NLRI_IPPrefix{
-					Prefix: *pref,
-					PathId: prefix.ID,
-				})
+					announcement.NLRI = append(announcement.NLRI, messages.NLRI_IPPrefix{
+						Prefix: *pref,
+						PathId: prefix.ID,
+					})
+				}
 			}
 			log.Println(announcement)
 			p.Neighbor.OutQueue <- announcement

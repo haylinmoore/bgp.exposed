@@ -121,7 +121,7 @@
         socket.send(JSON.stringify({
             type: "RouteData",
             data: {
-                prefixes: [{prefix: route.prefix, id: route.id}],
+                withdraws: [{prefix: route.prefix, id: route.id}],
             },
         }));
     }
