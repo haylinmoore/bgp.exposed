@@ -41,7 +41,7 @@
       ]
     }
   ],
-  "longaspath": [
+  "long-aspath": [
     {
       "prefixes": [
         "1.1.1.0/24"
@@ -151,7 +151,7 @@
       ]
     }
   ],
-  "transitasns": [
+  "transit-asns": [
     {
       "prefixes": [
         "103.172.168.0/23"
