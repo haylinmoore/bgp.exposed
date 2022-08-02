@@ -39,11 +39,32 @@
         };
     });
 
-    let peerASN = 65530;
-    let peerIP = "192.0.2.1";
-    let localASN = 65510;
+    let peerASN;
+    let peerIP;
+    let localASN;
+    if (localStorage.hasOwnProperty("peerASN")) {
+        peerASN = localStorage.getItem("peerASN")
+    } else {
+        peerASN = 65530;
+    }
+
+    if (localStorage.hasOwnProperty("peerIP")) {
+        peerIP = localStorage.getItem("peerIP")
+    } else {
+        peerIP = "192.0.2.1";
+    }
+
+    if (localStorage.hasOwnProperty("localASN")) {
+        localASN = localStorage.getItem("localASN")
+    } else {
+        localASN = 65510;
+    }
 
     function createSession() {
+        localStorage.setItem("localASN", localASN)
+        localStorage.setItem("peerIP", peerIP)
+        localStorage.setItem("peerASN", peerASN)
+
         socket.send(JSON.stringify({
             type: "CreateRequest",
             data: {
