@@ -1,11 +1,9 @@
 <script>
-    import {deleteAnnouncement} from "../api.js";
-
-    export let routes = [];
+   export let announcements = [];
 </script>
 
 <main>
-    <h3>Current Announcements</h3>
+    <h3>Current Announcements ({announcements.length})</h3>
     <table>
         <thead>
         <tr>
@@ -18,22 +16,23 @@
         </thead>
 
         <tbody>
-        {#each routes as route, i}
+        {#each announcements as route, i}
             <tr>
                 <td>{route.prefix}</td>
                 <td>{route.path.join(", ")}</td>
                 <td>{route.nexthop}</td>
                 <td>
-                    {#each route.communities as community}
-                        {community}
-                        <br>
-                    {/each}
+                    {#if route.communities}
+                        {#each route.communities as community}
+                            {community}
+                            <br>
+                        {/each}
+                    {/if}
                 </td>
                 <td class="delete" on:click={() => {
                     if (confirm("Are you sure you want to remove this announcement? (" + route.prefix + ")")) {
-                        deleteAnnouncement(route);
-                        routes.splice(i, 1);
-                        routes = routes; // Trigger svelte render
+                        // TODO
+                        announcements.splice(i, 1);
                     }
                 }}>-</td>
             </tr>

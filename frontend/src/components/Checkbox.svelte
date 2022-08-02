@@ -1,5 +1,6 @@
 <script>
-    export let label, checked;
+    export let label = "";
+    export let checked = false;
 </script>
 
 <main on:click={() => checked = !checked}>
