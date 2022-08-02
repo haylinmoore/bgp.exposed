@@ -4,7 +4,6 @@
     import ReceivedRoutesTable from "../components/ReceivedRoutesTable.svelte";
     import AnnouncementsTable from "../components/AnnouncementsTable.svelte";
     import Checkbox from "../components/Checkbox.svelte";
-    import {ws} from "../stores.js";
 
     let announcements = [
         {
@@ -55,31 +54,13 @@
             nexthop: newAnnouncementNextHop,
         });
         announcements = announcements; // Trigger render
-
-        $ws.send(JSON.stringify({
-            type: "RouteUpdate",
-            data: {
-                prefix: newAnnouncementPrefix,
-                asPath: parseCommaDelimited(newAnnouncementPath),
-                nextHop: newAnnouncementNextHop,
-            }
-        }))
+        // TODO
     }
 
     let md5Password;
     let addPath;
     let fullTable;
 
-    function updateSession() {
-        $ws.send(JSON.stringify({
-            type: "UpdateRequest",
-            data: {
-                md5Password: md5Password,
-                addPath: addPath,
-                fullTable: fullTable,
-            }
-        }));
-    }
 
     let holdTimer = 109;
     let keepaliveTimer = 58;

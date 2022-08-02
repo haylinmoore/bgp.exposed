@@ -1,9 +1,7 @@
 <script>
-    export let routes = [];
+    import {deleteAnnouncement} from "../api.js";
 
-    function deleteAnnouncement(route) {
-        // TODO
-    }
+    export let routes = [];
 </script>
 
 <main>
