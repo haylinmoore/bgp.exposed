@@ -106,15 +106,39 @@
     let newAnnouncementNextHop = "192.168.100.100";
     let newAnnouncementPath = "65510, 65530, 65500";
 
+    function routesetBind(name){
+        return function(check){
+            if (check){
+                announceRouteset(name)
+            } else {
+                removeRouteset(name)
+            }
+        }
+    }
+
+    function removeRouteset(name){
+        let toRemove = announcements.filter(a => a.routeset != undefined && a.routeset == name); 
+        toRemove = toRemove.map(r=>{
+            return {id:r.id, prefix:r.prefix}
+        })
+        socket.send(JSON.stringify({
+            type: "RouteData",
+            data: {
+                withdraws: toRemove,
+            },
+        }));
+        announcements = announcements.filter(a => a.routeset == undefined || a.routeset != name); 
+    }
+
     function announceRouteset(name){
 
         let routes = routesets[name]
         for (let i = 0; i < routes.length; i++){
             let route = routes[i]
             let data = {
-                prefixes: [...route.prefixes.map((p)=>{
+                prefixes: route.prefixes.map((p)=>{
                     return {prefix:p, id: generateRouteID()}
-                })],
+                }),
                 origin: 0,
                 nextHop: newAnnouncementNextHop,
                 asPath: [],
@@ -142,6 +166,8 @@
                 });
             }
         }
+        announcements = announcements; // Trigger svelte refresh
+
     }
 
     let id = 0
@@ -243,6 +269,11 @@
 
                 <form on:submit|preventDefault={() => addAnnouncement()}>
                     <h3>Announcements</h3>
+                    <div class="col">
+                        {#each Object.entries(routesets) as [name, rs]}
+                            <Checkbox label={name} cb={routesetBind(name)}/>
+                        {/each}
+                    </div>
                     <div class="row">
                         <Input label="Prefix"
                                placeholder="192.0.2.0/24"

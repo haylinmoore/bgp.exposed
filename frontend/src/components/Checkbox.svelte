@@ -1,9 +1,10 @@
 <script>
     export let label = "";
     export let checked = false;
+    export let cb;
 </script>
 
-<main on:click={() => checked = !checked}>
+<main on:click={() => {checked = !checked;if (cb!=null){cb(checked)}}}>
     <input type="checkbox" bind:checked>
     <span>{label}</span>
 </main>
