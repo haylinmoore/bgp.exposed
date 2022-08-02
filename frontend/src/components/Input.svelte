@@ -1,7 +1,12 @@
 <script>
-    export let value, label, placeholder;
-    export let rightPadding, bottomPadding = false;
-    export let wide, number, required = false;
+    export let value = "";
+    export let label = "";
+    export let placeholder = "";
+    export let rightPadding = false;
+    export let bottomPadding = false;
+    export let wide = false;
+    export let number = false;
+    export let required = false;
 </script>
 
 <main class:rightPadding class:bottomPadding>

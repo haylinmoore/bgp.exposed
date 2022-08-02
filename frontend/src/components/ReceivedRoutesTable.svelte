@@ -1,9 +1,9 @@
 <script>
-    export let routes = [];
+    export let receivedRoutes = [];
 </script>
 
 <main>
-    <h3>Routes Received</h3>
+    <h3>Routes Received ({receivedRoutes.length})</h3>
     <table>
         <thead>
         <tr>
@@ -16,7 +16,7 @@
         </tr>
         </thead>
         <tbody>
-        {#each routes as route}
+        {#each receivedRoutes as route}
             <tr>
                 <td>{route.prefix}</td>
                 <td>{route.path.join(", ")}</td>
