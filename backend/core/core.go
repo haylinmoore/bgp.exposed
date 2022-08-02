@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"regexp"
+
+	_ "embed"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -19,6 +22,9 @@ var (
 )
 
 var server *bgp.BGPServer
+
+//go:embed routesets.json
+var routesets []byte
 
 func ClientHandler(c *websocket.Conn) {
 	var peer *bgp.Peer
@@ -93,6 +99,9 @@ func main() {
 		log.Debug("Verbose logging enabled")
 	}
 
+	// Remove whitespace
+	routesets = []byte(regexp.MustCompile(`\s+`).ReplaceAllString(string(routesets), ""))
+
 	server = bgp.CreateBGPServer(1000, "0.0.0.0:2000", "1.1.1.1")
 
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})
@@ -109,6 +118,10 @@ func main() {
 	})
 
 	app.Get("/ws/", websocket.New(ClientHandler))
+	app.Get("/routesets.json", func(c *fiber.Ctx) error {
+		c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSONCharsetUTF8)
+		return c.Send(routesets)
+	})
 
 	log.Infof("Starting API on %s", *addr)
 	log.Fatal(app.Listen(*addr))
