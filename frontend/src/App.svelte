@@ -82,6 +82,7 @@
         }));
 
         socket.addEventListener("message", (e) => {
+            e = JSON.parse(e.data)
             if (e.type === "RouteData") {
                 for (const prefix of e.data.prefixes) {
                     receivedRoutes.push({
@@ -91,11 +92,11 @@
                         nexthop: e.data.nextHop,
                         origin: e.data.origin,
                         communities: [], // TODO
-                        rpki: "valid",
-                        irr: true
+                        rpki: "invalid",
+                        irr: false
                     });
-                    receivedRoutes = receivedRoutes; // Trigger svelte refresh
                 }
+                receivedRoutes = receivedRoutes; // Trigger svelte refresh
             }
         })
 
