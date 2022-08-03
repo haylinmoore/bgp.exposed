@@ -13,6 +13,7 @@
     let announcements = [];
     let receivedRoutes = [];
 
+    let state = "Unknown";
     let holdTimer = 0;
     let keepaliveTimer = 0
     let lastUpdate = "Never";
@@ -36,6 +37,7 @@
 
         socket.onclose = function (e) {
             console.log("ws closed");
+            created = false
         };
 
         socket.onerror = function (e) {
@@ -68,6 +70,11 @@
     }
 
     function createSession() {
+        if (socket.readyState != 1) {
+            alert("Websocket connection to the backend is down. Please reload or try again later")
+            return;
+        }
+
         localStorage.setItem("localASN", localASN)
         localStorage.setItem("peerIP", peerIP)
         localStorage.setItem("peerASN", peerASN)
@@ -97,6 +104,18 @@
                     });
                 }
                 receivedRoutes = receivedRoutes; // Trigger svelte refresh
+            } if (e.type=="FSMUpdate") {
+                if (e.data.lastUpdate != 0){
+                    lastUpdate = new Date(e.data.lastUpdate / 1000 / 1000).toTimeString().split(" ")[0]
+                }
+                if (e.data.lastKeepalive != 0){
+                    lastKeepalive = new Date(e.data.lastKeepalive / 1000 / 1000).toTimeString().split(" ")[0]
+                }
+                if (e.data.state != ""){
+                    state = e.data.state;
+                }
+            } else {
+                console.log(e.type, e)
             }
         })
 
@@ -244,7 +263,7 @@
         </div>
     {:else}
         <p class="banner">
-            BGP session with <b>AS{peerASN} ({peerIP})</b>
+            BGP session with <b>AS{peerASN} ({peerIP})</b> State: <b>{state}</b>
             <br>
             Hold Timer: <b>{holdTimer}</b>/<b>180</b> seconds, Keepalive Timer: <b>{keepaliveTimer}</b>/<b>60</b>
             seconds

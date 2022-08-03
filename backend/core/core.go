@@ -75,7 +75,8 @@ func ClientHandler(c *websocket.Conn) {
 				break
 			}
 			peer = server.CreatePeer(&v, ctx, cancel)
-			go peer.Handler(started)
+			started <- true
+			go peer.Handler()
 		} else if peer != nil {
 			if packet.Type == "RouteData" {
 				v := common.RouteData{}

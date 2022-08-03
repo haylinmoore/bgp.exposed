@@ -27,10 +27,16 @@ type Peer struct {
 	Cancel           context.CancelFunc
 }
 
-func (p *Peer) Handler(started chan bool) {
+func (p *Peer) Handler() {
 	// Wait for the peer to raise
 	<-p.KeepAlive
-	started <- true
+	p.SendChan <- &common.Packet{
+		Type: "FSMUpdate",
+		Data: common.FSMUpdate{
+			State:         "Established",
+			LastKeepalive: uint(time.Now().UnixNano()),
+		},
+	}
 main:
 	for {
 		select {
@@ -89,6 +95,12 @@ main:
 			p.Neighbor.OutQueue <- announcement
 		case <-p.Context.Done():
 			//log.Println(p.Neighbor.State.CurState)
+			p.SendChan <- &common.Packet{
+				Type: "FSMUpdate",
+				Data: common.FSMUpdate{
+					State: "Idle",
+				},
+			}
 			p.Neighbor.Disconnect()
 			p.Server.PeerLock.Lock()
 			delete(p.Server.Peers, p.Key)
@@ -96,7 +108,6 @@ main:
 			break main
 		}
 	}
-	log.Println("Worker has died")
 }
 
 type BGPServer struct {
@@ -131,6 +142,12 @@ func (s *BGPServer) CreatePeer(request *common.CreateRequest, ctx context.Contex
 		Context:          ctx,
 		Cancel:           cancel,
 	}
+	peer.SendChan <- &common.Packet{
+		Type: "FSMUpdate",
+		Data: common.FSMUpdate{
+			State: "Idle",
+		},
+	}
 	s.Peers[request.ToKey()] = peer
 	s.PeerLock.Unlock()
 	return peer
@@ -152,6 +169,12 @@ func (s *BGPServer) ProcessReceived(msg interface{}, n *fgbgp.Neighbor) (bool, e
 		if peer, ok := s.Peers[key]; ok {
 			n.ASN = peer.LocalASN
 			peer.Neighbor = n
+			peer.SendChan <- &common.Packet{
+				Type: "FSMUpdate",
+				Data: common.FSMUpdate{
+					State: "OpenConfirm",
+				},
+			}
 			return true, nil
 		} else {
 			return false, nil
@@ -159,6 +182,12 @@ func (s *BGPServer) ProcessReceived(msg interface{}, n *fgbgp.Neighbor) (bool, e
 	case *messages.BGPMessageKeepAlive:
 		peer, ok := s.GetPeerFromNeigh(n)
 		n.OutQueue <- messages.BGPMessageKeepAlive{}
+		peer.SendChan <- &common.Packet{
+			Type: "FSMUpdate",
+			Data: common.FSMUpdate{
+				LastKeepalive: uint(time.Now().UnixNano()),
+			},
+		}
 		if ok {
 			peer.KeepAlive <- v
 		}
@@ -176,6 +205,12 @@ func (s *BGPServer) ProcessUpdateEvent(e *messages.BGPMessageUpdate, n *fgbgp.Ne
 	if !exists {
 		log.Println("PEER DOESN'T EXIST??", n.Addr.String(), n.PeerASN)
 		return false
+	}
+	peer.SendChan <- &common.Packet{
+		Type: "FSMUpdate",
+		Data: common.FSMUpdate{
+			LastUpdate: uint(time.Now().UnixNano()),
+		},
 	}
 
 	data := common.RouteData{}
@@ -216,6 +251,12 @@ func (s *BGPServer) ProcessUpdateEvent(e *messages.BGPMessageUpdate, n *fgbgp.Ne
 func (s *BGPServer) DisconnectedNeighbor(n *fgbgp.Neighbor) {
 	peer, ok := s.GetPeerFromNeigh(n)
 	if ok {
+		peer.SendChan <- &common.Packet{
+			Type: "FSMUpdate",
+			Data: common.FSMUpdate{
+				State: "Idle",
+			},
+		}
 		peer.Cancel()
 	}
 	log.Printf("DISCONNECTED %v\n", n)
@@ -224,7 +265,7 @@ func (s *BGPServer) DisconnectedNeighbor(n *fgbgp.Neighbor) {
 func (s *BGPServer) NewNeighbor(on *messages.BGPMessageOpen, n *fgbgp.Neighbor) bool {
 	log.Printf("GOT A NEW Neighbor %v %v\n", on, n)
 	n.LocalHoldTime = time.Second * 60
-	n.LocalEnableKeepAlive = false
+	n.LocalEnableKeepAlive = true
 	return true
 }
 
