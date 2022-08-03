@@ -172,7 +172,7 @@ func (s *BGPServer) ProcessReceived(msg interface{}, n *fgbgp.Neighbor) (bool, e
 			peer.SendChan <- &common.Packet{
 				Type: "FSMUpdate",
 				Data: common.FSMUpdate{
-					State: "OpenConfirm",
+					State: "Active",
 				},
 			}
 			return true, nil
@@ -271,11 +271,31 @@ func (s *BGPServer) NewNeighbor(on *messages.BGPMessageOpen, n *fgbgp.Neighbor) 
 
 func (s *BGPServer) OpenSend(on *messages.BGPMessageOpen, n *fgbgp.Neighbor) bool {
 	log.Printf("OpenSend %v %v\n", on, n)
+	peer, ok := s.GetPeerFromNeigh(n)
+	if ok {
+		peer.SendChan <- &common.Packet{
+			Type: "FSMUpdate",
+			Data: common.FSMUpdate{
+				State: "OpenSent",
+			},
+		}
+		peer.Cancel()
+	}
 	return true
 }
 
-func (s *BGPServer) OpenConfirm() bool {
+func (s *BGPServer) OpenConfirm(n *fgbgp.Neighbor) bool {
 	log.Printf("OpenConfirm\n")
+	peer, ok := s.GetPeerFromNeigh(n)
+	if ok {
+		peer.SendChan <- &common.Packet{
+			Type: "FSMUpdate",
+			Data: common.FSMUpdate{
+				State: "OpenConfirm",
+			},
+		}
+		peer.Cancel()
+	}
 	return true
 }
 
