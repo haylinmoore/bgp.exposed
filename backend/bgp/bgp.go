@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bgptools/fgbgp/messages"
-	fgbgp "github.com/bgptools/fgbgp/server"
 	"github.com/hamptonmoore/bgp.exposed/backend/common"
+	"github.com/natesales/fgbgp/messages"
+	fgbgp "github.com/natesales/fgbgp/server"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -110,10 +110,41 @@ main:
 	}
 }
 
+func (p *Peer) Log(msg string) {
+	p.SendChan <- &common.Packet{
+		Type: "FSMUpdate",
+		Data: common.Event{
+			Time:    uint64(time.Now().UTC().UnixNano()),
+			Message: msg,
+		},
+	}
+}
+
 type BGPServer struct {
 	Fgbgp    *fgbgp.Manager
 	PeerLock sync.RWMutex
 	Peers    map[string]*Peer
+}
+
+var _ fgbgp.BGPEventHandler = (*BGPServer)(nil)
+
+func (s *BGPServer) StateChanged(stateInt int, n *fgbgp.Neighbor) {
+	state, found := fgbgp.StateToString[stateInt]
+	if !found {
+		log.Warnf("Unknown state: %d", stateInt)
+		return
+	}
+	peer, ok := s.GetPeerFromNeigh(n)
+	if ok {
+		peer.SendChan <- &common.Packet{
+			Type: "FSMUpdate",
+			Data: common.FSMUpdate{
+				State: state,
+			},
+		}
+		peer.Log("FSM state changed to " + state)
+		peer.Cancel()
+	}
 }
 
 func (s *BGPServer) GetPeerFromNeigh(n *fgbgp.Neighbor) (*Peer, bool) {
@@ -266,36 +297,6 @@ func (s *BGPServer) NewNeighbor(on *messages.BGPMessageOpen, n *fgbgp.Neighbor) 
 	log.Printf("GOT A NEW Neighbor %v %v\n", on, n)
 	n.LocalHoldTime = time.Second * 60
 	n.LocalEnableKeepAlive = true
-	return true
-}
-
-func (s *BGPServer) OpenSend(on *messages.BGPMessageOpen, n *fgbgp.Neighbor) bool {
-	log.Printf("OpenSend %v %v\n", on, n)
-	peer, ok := s.GetPeerFromNeigh(n)
-	if ok {
-		peer.SendChan <- &common.Packet{
-			Type: "FSMUpdate",
-			Data: common.FSMUpdate{
-				State: "OpenSent",
-			},
-		}
-		peer.Cancel()
-	}
-	return true
-}
-
-func (s *BGPServer) OpenConfirm(n *fgbgp.Neighbor) bool {
-	log.Printf("OpenConfirm\n")
-	peer, ok := s.GetPeerFromNeigh(n)
-	if ok {
-		peer.SendChan <- &common.Packet{
-			Type: "FSMUpdate",
-			Data: common.FSMUpdate{
-				State: "OpenConfirm",
-			},
-		}
-		peer.Cancel()
-	}
 	return true
 }
 

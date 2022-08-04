@@ -45,3 +45,8 @@ type FSMUpdate struct {
 	LastUpdate     uint   `json:"lastUpdate"`
 	LastKeepalive  uint   `json:"lastKeepalive"`
 }
+
+type Event struct {
+	Time    uint64 `json:"time"` // Epoch timestamp
+	Message string `json:"message"`
+}
