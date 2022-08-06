@@ -110,7 +110,6 @@ main:
 					})
 				}
 			}
-			log.Println(announcement)
 			p.Neighbor.OutQueue <- announcement
 		case <-p.Context.Done():
 			//log.Println(p.Neighbor.State.CurState)

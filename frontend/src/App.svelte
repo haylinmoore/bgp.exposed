@@ -7,7 +7,7 @@
     import AnnouncementsTable from "./components/AnnouncementsTable.svelte";
     import ReceivedRoutesTable from "./components/ReceivedRoutesTable.svelte";
     import Checkbox from "./components/Checkbox.svelte";
-import { time_ranges_to_array } from "svelte/internal";
+    import { time_ranges_to_array } from "svelte/internal";
 
     let created = false;
 
@@ -16,6 +16,7 @@ import { time_ranges_to_array } from "svelte/internal";
 
     let state = "Unknown";
     let holdTimer = 0;
+    let lastMessageTimer = 0;
     let keepaliveTimer = 0;
     let sentLastKeepAlive = 0;
     let lastUpdate = "Never";
@@ -75,6 +76,9 @@ import { time_ranges_to_array } from "svelte/internal";
         if (sentLastKeepAlive > 0) {
             sentLastKeepAlive--
         }
+        if (lastMessageTimer > 0){
+            lastMessageTimer--
+        }
     }, 1000)
 
     function createSession() {
@@ -115,15 +119,20 @@ import { time_ranges_to_array } from "svelte/internal";
             } if (e.type=="FSMUpdate") {
                 if (e.data.lastUpdate != 0){
                     lastUpdate = new Date(e.data.lastUpdate / 1000 / 1000).toTimeString().split(" ")[0]
+                    lastMessageTimer = holdTimer
                 }
                 if (e.data.lastKeepalive != 0){
                     lastKeepalive = new Date(e.data.lastKeepalive / 1000 / 1000).toTimeString().split(" ")[0]
+                    lastMessageTimer = holdTimer
                 }
                 if (e.data.keepaliveTimer != 0) {
                     keepaliveTimer = e.data.keepaliveTimer
                 }
                 if (e.data.sentKeepAlive){
                     sentLastKeepAlive = keepaliveTimer
+                }
+                if (e.data.holdTimer) {
+                    holdTimer = e.data.holdTimer
                 }
                 if (e.data.state != ""){
                     state = e.data.state;
@@ -279,7 +288,7 @@ import { time_ranges_to_array } from "svelte/internal";
         <p class="banner">
             BGP session with <b>AS{peerASN} ({peerIP})</b> State: <b>{state}</b>
             <br>
-            Hold Timer: <b>{holdTimer}</b>/<b>180</b> seconds, Keepalive Timer: <b>{sentLastKeepAlive}</b>/<b>{keepaliveTimer}</b>
+            Hold Timer: <b>{lastMessageTimer}</b>/<b>{holdTimer}</b> seconds, Keepalive Timer: <b>{sentLastKeepAlive}</b>/<b>{keepaliveTimer}</b>
             seconds
             <br>
             Last UPDATE: <b>{lastUpdate}</b>, Last KEEPALIVE: <b>{lastKeepalive}</b>
