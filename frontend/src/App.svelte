@@ -7,6 +7,7 @@
     import AnnouncementsTable from "./components/AnnouncementsTable.svelte";
     import ReceivedRoutesTable from "./components/ReceivedRoutesTable.svelte";
     import Checkbox from "./components/Checkbox.svelte";
+import { time_ranges_to_array } from "svelte/internal";
 
     let created = false;
 
@@ -15,7 +16,8 @@
 
     let state = "Unknown";
     let holdTimer = 0;
-    let keepaliveTimer = 0
+    let keepaliveTimer = 0;
+    let sentLastKeepAlive = 0;
     let lastUpdate = "Never";
     let lastKeepalive = "Never";
 
@@ -69,6 +71,12 @@
         localASN = 65510;
     }
 
+    setInterval(()=>{
+        if (sentLastKeepAlive > 0) {
+            sentLastKeepAlive--
+        }
+    }, 1000)
+
     function createSession() {
         if (socket.readyState != 1) {
             alert("Websocket connection to the backend is down. Please reload or try again later")
@@ -110,6 +118,12 @@
                 }
                 if (e.data.lastKeepalive != 0){
                     lastKeepalive = new Date(e.data.lastKeepalive / 1000 / 1000).toTimeString().split(" ")[0]
+                }
+                if (e.data.keepaliveTimer != 0) {
+                    keepaliveTimer = e.data.keepaliveTimer
+                }
+                if (e.data.sentKeepAlive){
+                    sentLastKeepAlive = keepaliveTimer
                 }
                 if (e.data.state != ""){
                     state = e.data.state;
@@ -265,7 +279,7 @@
         <p class="banner">
             BGP session with <b>AS{peerASN} ({peerIP})</b> State: <b>{state}</b>
             <br>
-            Hold Timer: <b>{holdTimer}</b>/<b>180</b> seconds, Keepalive Timer: <b>{keepaliveTimer}</b>/<b>60</b>
+            Hold Timer: <b>{holdTimer}</b>/<b>180</b> seconds, Keepalive Timer: <b>{sentLastKeepAlive}</b>/<b>{keepaliveTimer}</b>
             seconds
             <br>
             Last UPDATE: <b>{lastUpdate}</b>, Last KEEPALIVE: <b>{lastKeepalive}</b>

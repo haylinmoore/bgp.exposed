@@ -42,6 +42,7 @@ type FSMUpdate struct {
 	State          string `json:"state"`
 	HoldTimer      uint   `json:"holdTimer"`
 	KeepaliveTimer uint   `json:"keepaliveTimer"`
+	SentKeepAlive  bool   `json:"sentKeepAlive"`
 	LastUpdate     uint   `json:"lastUpdate"`
 	LastKeepalive  uint   `json:"lastKeepalive"`
 }
