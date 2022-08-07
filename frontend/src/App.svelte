@@ -327,8 +327,8 @@
                         <Input label="MD5 Password" placeholder="Optional" bind:value={md5Password}/>
                     </span>
                         <div class="col">
-                            <Checkbox label="ADD_PATH?" bind:value={addPath}/>
-                            <Checkbox label="Full table?" bind:value={fullTable}/>
+                            <Checkbox label="ADD_PATH?" bind:checked={addPath}/>
+                            <Checkbox label="Full table?" bind:checked={fullTable}/>
                         </div>
                     </div>
                     <Button label="Save"/>

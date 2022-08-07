@@ -1,7 +1,7 @@
 <script>
     export let label = "";
     export let checked = false;
-    export let cb;
+    export let cb = null;
 </script>
 
 <main on:click={() => {checked = !checked;if (cb!=null){cb(checked)}}}>

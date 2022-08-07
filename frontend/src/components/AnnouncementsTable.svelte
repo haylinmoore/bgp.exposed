@@ -1,7 +1,7 @@
 <script>
     import StringList from "./StringList.svelte";
     export let announcements = [];
-    export let deleteCallback = function () {};
+    export let deleteCallback = function (cb) {};
 </script>
 
 <main>
