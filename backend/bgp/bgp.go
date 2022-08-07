@@ -2,6 +2,7 @@ package bgp
 
 import (
 	"context"
+	"errors"
 	"net"
 	"strconv"
 	"sync"
@@ -170,10 +171,11 @@ func (s *BGPServer) ProcessReceived(msg interface{}, n *fgbgp.Neighbor) (bool, e
 	n.LocalLastKeepAliveRecv = time.Now()
 	switch v := msg.(type) {
 	case *messages.BGPMessageOpen:
-		s.PeerLock.Lock()
-		defer s.PeerLock.Unlock()
 		key := n.Addr.String() + "|" + strconv.FormatUint(uint64(v.ASN), 10)
-		if peer, ok := s.Peers[key]; ok {
+		s.PeerLock.Lock()
+		peer, ok := s.Peers[key]
+		s.PeerLock.Unlock()
+		if ok {
 			n.ASN = peer.LocalASN
 			peer.Neighbor = n
 			peer.SendChan <- &common.Packet{
@@ -184,7 +186,8 @@ func (s *BGPServer) ProcessReceived(msg interface{}, n *fgbgp.Neighbor) (bool, e
 			}
 			return true, nil
 		} else {
-			return false, nil
+			n.Disconnect()
+			return false, errors.New("no peer exists")
 		}
 	case *messages.BGPMessageKeepAlive:
 		peer, ok := s.GetPeerFromNeigh(n)
@@ -283,8 +286,9 @@ func (s *BGPServer) OpenSend(on *messages.BGPMessageOpen, n *fgbgp.Neighbor) boo
 				State: "OpenSent",
 			},
 		}
+		return true
 	}
-	return true
+	return false
 }
 
 func CreateBGPServer(asn uint32, listenAddr string, identifier string) *BGPServer {

@@ -142,6 +142,10 @@
                     }
                     if (e.data.state != ""){
                         state = e.data.state;
+                        if (state == "Established"){
+                            receivedRoutes = []
+                            
+                        }
                     }
                 }
             } else {
