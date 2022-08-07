@@ -222,6 +222,15 @@ func (s *BGPServer) ProcessUpdateEvent(e *messages.BGPMessageUpdate, n *fgbgp.Ne
 			})
 		}
 	}
+	for _, v := range e.WithdrawnRoutes {
+		prefix, ok := v.(messages.NLRI_IPPrefix)
+		if ok {
+			data.Withdraws = append(data.Prefixes, common.NLRI{
+				Prefix: prefix.Prefix.String(),
+				ID:     prefix.PathId,
+			})
+		}
+	}
 
 	for _, v := range e.PathAttributes {
 		switch val := v.(type) {

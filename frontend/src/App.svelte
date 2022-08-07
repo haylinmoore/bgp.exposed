@@ -106,17 +106,24 @@
         socket.addEventListener("message", (e) => {
             e = JSON.parse(e.data)
             if (e.type === "RouteData") {
-                for (const prefix of e.data.prefixes) {
-                    receivedRoutes.push({
-                        id: prefix.id,
-                        prefix: prefix.prefix,
-                        path: e.data.asPath,
-                        nexthop: e.data.nextHop,
-                        origin: e.data.origin,
-                        communities: [], // TODO
-                        rpki: "invalid",
-                        irr: false
-                    });
+                if (e.data.prefixes != null){
+                    for (const prefix of e.data.prefixes) {
+                        receivedRoutes.push({
+                            id: prefix.id,
+                            prefix: prefix.prefix,
+                            path: e.data.asPath,
+                            nexthop: e.data.nextHop,
+                            origin: e.data.origin,
+                            communities: [], // TODO
+                            rpki: "invalid",
+                            irr: false
+                        });
+                    }
+                }
+                if (e.data.withdraws != null){
+                    for (const prefix of e.data.withdraws) {
+                        receivedRoutes = receivedRoutes.filter(a => (a.prefix != prefix.prefix || a.id != prefix.id)); 
+                    }
                 }
                 receivedRoutes = receivedRoutes; // Trigger svelte refresh
             } if (e.type=="FSMUpdate") {
