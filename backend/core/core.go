@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	addr    = flag.String("addr", "localhost:8080", "http service address")
+	addr    = flag.String("addr", "0.0.0.0:8080", "http service address")
 	verbose = flag.Bool("v", false, "enable verbose logging")
 )
 
