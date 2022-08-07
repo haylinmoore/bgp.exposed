@@ -1,6 +1,7 @@
 <script>
-   export let announcements = [];
-   export let deleteCallback = function () {};
+    import StringList from "./StringList.svelte";
+    export let announcements = [];
+    export let deleteCallback = function () {};
 </script>
 
 <main>
@@ -20,16 +21,10 @@
         {#each announcements as route, i}
             <tr>
                 <td>{route.prefix}</td>
-                <td>{route.path.join(", ")}</td>
+                <td><StringList list={route.path}/></td>
                 <td>{route.nexthop}</td>
-                <td>
-                    {#if route.communities}
-                        {#each route.communities as community}
-                            {community}
-                            <br>
-                        {/each}
-                    {/if}
-                </td>
+                <td><StringList list={route.communities}/></td>
+
                 <td class="delete" on:click={() => {
                     if (confirm("Are you sure you want to remove this announcement? (" + route.prefix + ")")) {
                         deleteCallback(route);

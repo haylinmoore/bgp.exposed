@@ -1,4 +1,5 @@
 <script>
+    import StringList from "./StringList.svelte";
     export let receivedRoutes = [];
 </script>
 
@@ -19,7 +20,7 @@
         {#each receivedRoutes as route}
             <tr>
                 <td>{route.prefix}</td>
-                <td>{route.path.join(", ")}</td>
+                <td><StringList list={route.path}/></td>
                 <td>{route.nexthop}</td>
                 {#if route.rpki === "valid"}
                     <td style="color: lightgreen">Valid</td>
@@ -33,12 +34,7 @@
                 {:else}
                     <td style="color: red">Not Found</td>
                 {/if}
-                <td>
-                    {#each route.communities as community}
-                        {community}
-                        <br>
-                    {/each}
-                </td>
+                <td><StringList list={route.communities}/></td>
             </tr>
         {/each}
         </tbody>
