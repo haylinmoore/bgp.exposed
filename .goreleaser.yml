@@ -1,0 +1,53 @@
+before:
+  hooks:
+    - sh -c 'cd frontend && npm run build'
+
+builds:
+  - id: core
+    dir: ./backend/core
+    binary: core
+    goos:
+      - linux
+    goarch:
+      - amd64
+
+  - id: bgp
+    dir: ./backend/bgp
+    binary: bgp
+    goos:
+      - linux
+    goarch:
+      - amd64
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+dockers:
+  - ids: [ "core" ]
+    image_templates: [ "ghcr.io/hamptonmoore/bgp.exposed-core:{{ .Version }}" ]
+    dockerfile: ./backend/core/Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+
+  - ids: [ "bgp" ]
+    image_templates: [ "ghcr.io/hamptonmoore/bgp.exposed-bgp:{{ .Version }}" ]
+    dockerfile: ./backend/bgp/Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+
+archives:
+  - id: frontend
+    meta: true # No binaries
+    name_template: frontend
+    files:
+      - ./frontend/dist/

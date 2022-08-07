@@ -1,2 +1,4 @@
 backend/core/core
 .idea
+dist
+public/dist
