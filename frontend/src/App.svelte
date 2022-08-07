@@ -144,7 +144,17 @@
                         state = e.data.state;
                         if (state == "Established"){
                             receivedRoutes = []
-                            
+                            for (let route of announcements){
+                                socket.send(JSON.stringify({
+                                    type: "RouteData",
+                                    data: {
+                                        prefixes: [{prefix:route.prefix, id: route.id}],
+                                        origin: route.origin,
+                                        nextHop: route.nexthop,
+                                        asPath: route.path,
+                                    },
+                                }))
+                            }
                         }
                     }
                 }
