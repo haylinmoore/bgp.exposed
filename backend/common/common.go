@@ -17,6 +17,10 @@ func (c *CreateRequest) ToKey() string {
 	return c.PeerIP + "|" + strconv.FormatUint(uint64(c.PeerASN), 10)
 }
 
+type Error struct {
+	Message string `json:"message"`
+}
+
 type UpdateRequest struct {
 	FullTable   bool   `json:"fullTable"`
 	AddPath     bool   `json:"addPath"`

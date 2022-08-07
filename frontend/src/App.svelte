@@ -9,8 +9,6 @@
     import Checkbox from "./components/Checkbox.svelte";
     import { time_ranges_to_array } from "svelte/internal";
 
-    let created = false;
-
     let announcements = [];
     let receivedRoutes = [];
 
@@ -36,72 +34,6 @@
         socket.onopen = function (e) {
             console.log("ws connected");
         };
-
-        socket.onmessage = function (e) {
-            console.log(e.data);
-        };
-
-        socket.onclose = function (e) {
-            console.log("ws closed");
-            created = false
-        };
-
-        socket.onerror = function (e) {
-            console.log("ws error", e);
-        };
-        fetch(endpoint + "routesets.json").then((d)=>d.json()).then((rs)=>{
-            routesets=rs
-        })
-    });
-
-    let peerASN;
-    let peerIP;
-    let localASN;
-    if (localStorage.hasOwnProperty("peerASN")) {
-        peerASN = Number(localStorage.getItem("peerASN"))
-    } else {
-        peerASN = 65530;
-    }
-
-    if (localStorage.hasOwnProperty("peerIP")) {
-        peerIP = localStorage.getItem("peerIP")
-    } else {
-        peerIP = "192.0.2.1";
-    }
-
-    if (localStorage.hasOwnProperty("localASN")) {
-        localASN = Number(localStorage.getItem("localASN"))
-    } else {
-        localASN = 65510;
-    }
-
-    setInterval(()=>{
-        if (sentLastKeepAlive > 0) {
-            sentLastKeepAlive--
-        }
-        if (lastMessageTimer > 0){
-            lastMessageTimer--
-        }
-    }, 1000)
-
-    function createSession() {
-        if (socket.readyState != 1) {
-            alert("Websocket connection to the backend is down. Please reload or try again later")
-            return;
-        }
-
-        localStorage.setItem("localASN", localASN)
-        localStorage.setItem("peerIP", peerIP)
-        localStorage.setItem("peerASN", peerASN)
-
-        socket.send(JSON.stringify({
-            type: "CreateRequest",
-            data: {
-                peerASN: peerASN,
-                peerIP: peerIP,
-                localASN: localASN
-            }
-        }));
 
         socket.addEventListener("message", (e) => {
             e = JSON.parse(e.data)
@@ -168,12 +100,74 @@
                         }
                     }
                 }
+            } else if (e.type == "Error") {
+                alert("Error: " + e.data.message)
             } else {
                 console.log(e.type, e)
             }
         })
 
-        created = true;
+        socket.onclose = function (e) {
+            console.log("ws closed");
+        };
+
+        socket.onerror = function (e) {
+            console.log("ws error", e);
+        };
+        fetch(endpoint + "routesets.json").then((d)=>d.json()).then((rs)=>{
+            routesets=rs
+        })
+    });
+
+    let peerASN;
+    let peerIP;
+    let localASN;
+    if (localStorage.hasOwnProperty("peerASN")) {
+        peerASN = Number(localStorage.getItem("peerASN"))
+    } else {
+        peerASN = 65530;
+    }
+
+    if (localStorage.hasOwnProperty("peerIP")) {
+        peerIP = localStorage.getItem("peerIP")
+    } else {
+        peerIP = "192.0.2.1";
+    }
+
+    if (localStorage.hasOwnProperty("localASN")) {
+        localASN = Number(localStorage.getItem("localASN"))
+    } else {
+        localASN = 65510;
+    }
+
+    setInterval(()=>{
+        if (sentLastKeepAlive > 0) {
+            sentLastKeepAlive--
+        }
+        if (lastMessageTimer > 0){
+            lastMessageTimer--
+        }
+    }, 1000)
+
+    function createSession() {
+        if (socket.readyState != 1) {
+            alert("Websocket connection to the backend is down. Please reload or try again later")
+            return;
+        }
+
+        localStorage.setItem("localASN", localASN)
+        localStorage.setItem("peerIP", peerIP)
+        localStorage.setItem("peerASN", peerASN)
+
+        socket.send(JSON.stringify({
+            type: "CreateRequest",
+            data: {
+                peerASN: peerASN,
+                peerIP: peerIP,
+                localASN: localASN
+            }
+        }));
+
     }
 
     let newAnnouncementPrefix = "192.0.2.0/24";
@@ -303,7 +297,7 @@
     <p>
         <slot name="banner"/>
     </p>
-    {#if !created}
+    {#if state == "Unknown"}
         <p class="banner">BGP.exposed is a ...</p>
 
         <div class="row">

@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"flag"
 	"regexp"
+	"time"
 
 	_ "embed"
 
+	"github.com/bgptools/fgbgp/messages"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/websocket/v2"
@@ -52,7 +54,6 @@ func ClientHandler(c *websocket.Conn) {
 		log.Debugf("Received message: %s", message)
 		if err != nil {
 			log.Warnf("read: %s", err)
-			cancel()
 			break
 		}
 
@@ -71,18 +72,26 @@ func ClientHandler(c *websocket.Conn) {
 			v := common.CreateRequest{}
 			if err := json.Unmarshal(data, &v); err != nil {
 				log.Warnf("CreateRequest unmarshal: %s", err)
-				cancel()
 				break
 			}
-			peer = server.CreatePeer(&v, ctx, cancel)
-			started <- true
-			go peer.Handler()
+			peer, err = server.CreatePeer(&v, ctx, cancel)
+			if err != nil {
+				data, _ := json.Marshal(common.Packet{
+					Type: "Error",
+					Data: common.Error{
+						Message: err.Error(),
+					},
+				})
+				c.WriteMessage(1, data)
+			} else {
+				started <- true
+				go peer.Handler()
+			}
 		} else if peer != nil {
 			if packet.Type == "RouteData" {
 				v := common.RouteData{}
 				if err := json.Unmarshal(data, &v); err != nil {
 					log.Warnf("RouteData unmarshal: %s", err)
-					cancel()
 					break
 				}
 				peer.RoutesToAnnounce <- &v
@@ -91,6 +100,11 @@ func ClientHandler(c *websocket.Conn) {
 			log.Debugf("Unknown packet type: %s", packet.Type)
 		}
 	}
+	if peer != nil {
+		peer.KeepAlive <- &messages.BGPMessageKeepAlive{}
+	}
+	cancel()
+	time.Sleep(time.Second * 5)
 }
 
 func main() {

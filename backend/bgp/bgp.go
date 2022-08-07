@@ -46,6 +46,21 @@ func (p *Peer) Handler() {
 main:
 	for {
 		select {
+		case <-p.Context.Done():
+			p.SendChan <- &common.Packet{
+				Type: "FSMUpdate",
+				Data: common.FSMUpdate{
+					State: "Idle",
+				},
+			}
+			if p.Neighbor != nil {
+				p.Neighbor.Disconnect()
+			}
+			p.Server.PeerLock.Lock()
+			delete(p.Server.Peers, p.Key)
+			p.Server.PeerLock.Unlock()
+			log.Println("Deleted")
+			break main
 		case <-time.After(time.Second * 30):
 			p.KeepAlive <- &messages.BGPMessageKeepAlive{}
 		case <-p.KeepAlive:
@@ -101,19 +116,6 @@ main:
 				}
 			}
 			p.Neighbor.OutQueue <- announcement
-		case <-p.Context.Done():
-			//log.Println(p.Neighbor.State.CurState)
-			p.SendChan <- &common.Packet{
-				Type: "FSMUpdate",
-				Data: common.FSMUpdate{
-					State: "Idle",
-				},
-			}
-			p.Neighbor.Disconnect()
-			p.Server.PeerLock.Lock()
-			delete(p.Server.Peers, p.Key)
-			p.Server.PeerLock.Unlock()
-			break main
 		}
 	}
 }
@@ -133,10 +135,16 @@ func (s *BGPServer) GetPeerFromNeigh(n *fgbgp.Neighbor) (*Peer, bool) {
 	return peer, ok
 }
 
-func (s *BGPServer) CreatePeer(request *common.CreateRequest, ctx context.Context, cancel context.CancelFunc) *Peer {
+func (s *BGPServer) CreatePeer(request *common.CreateRequest, ctx context.Context, cancel context.CancelFunc) (*Peer, error) {
 	log.Debugf("Creating peer %s", request.PeerIP)
 
 	s.PeerLock.Lock()
+	defer s.PeerLock.Unlock()
+
+	_, exists := s.Peers[request.ToKey()]
+	if exists {
+		return nil, errors.New("Peer already exists")
+	}
 
 	peer := &Peer{
 		Key:              request.ToKey(),
@@ -144,9 +152,9 @@ func (s *BGPServer) CreatePeer(request *common.CreateRequest, ctx context.Contex
 		LocalASN:         request.LocalASN,
 		PeerIP:           request.PeerIP,
 		Server:           s,
-		SendChan:         make(chan *common.Packet, 1024),
-		KeepAlive:        make(chan *messages.BGPMessageKeepAlive, 16),
-		RoutesToAnnounce: make(chan *common.RouteData, 1024),
+		SendChan:         make(chan *common.Packet, 512),
+		KeepAlive:        make(chan *messages.BGPMessageKeepAlive, 512),
+		RoutesToAnnounce: make(chan *common.RouteData, 512),
 		Context:          ctx,
 		Cancel:           cancel,
 	}
@@ -157,8 +165,7 @@ func (s *BGPServer) CreatePeer(request *common.CreateRequest, ctx context.Contex
 		},
 	}
 	s.Peers[request.ToKey()] = peer
-	s.PeerLock.Unlock()
-	return peer
+	return peer, nil
 }
 
 func (s *BGPServer) Notification(msg *messages.BGPMessageNotification, n *fgbgp.Neighbor) bool {
