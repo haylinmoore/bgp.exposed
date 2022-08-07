@@ -42,7 +42,9 @@ type FSMUpdate struct {
 	State          string `json:"state"`
 	HoldTimer      uint   `json:"holdTimer"`
 	KeepaliveTimer uint   `json:"keepaliveTimer"`
-	SentKeepAlive  bool   `json:"sentKeepAlive"`
-	LastUpdate     uint   `json:"lastUpdate"`
-	LastKeepalive  uint   `json:"lastKeepalive"`
+}
+
+type Event struct {
+	Time    uint64 `json:"time"` // Epoch timestamp
+	Message string `json:"message"`
 }

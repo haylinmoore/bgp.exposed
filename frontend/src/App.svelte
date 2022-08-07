@@ -117,25 +117,32 @@
                 }
                 receivedRoutes = receivedRoutes; // Trigger svelte refresh
             } if (e.type=="FSMUpdate") {
-                if (e.data.lastUpdate != 0){
-                    lastUpdate = new Date(e.data.lastUpdate / 1000 / 1000).toTimeString().split(" ")[0]
-                    lastMessageTimer = holdTimer
-                }
-                if (e.data.lastKeepalive != 0){
-                    lastKeepalive = new Date(e.data.lastKeepalive / 1000 / 1000).toTimeString().split(" ")[0]
-                    lastMessageTimer = holdTimer
-                }
-                if (e.data.keepaliveTimer != 0) {
-                    keepaliveTimer = e.data.keepaliveTimer
-                }
-                if (e.data.sentKeepAlive){
-                    sentLastKeepAlive = keepaliveTimer
-                }
-                if (e.data.holdTimer) {
-                    holdTimer = e.data.holdTimer
-                }
-                if (e.data.state != ""){
-                    state = e.data.state;
+                if (e.data.time != undefined){
+                    switch (e.data.message){
+                        case "recv-keepalive": 
+                        lastKeepalive = new Date().toTimeString().split(" ")[0]
+                        lastMessageTimer = holdTimer
+                        break;
+                        case "sent-keepalive": 
+                        sentLastKeepAlive = keepaliveTimer;
+                        break;
+                        case "recv-update":
+                            lastUpdate = new Date().toTimeString().split(" ")[0]
+                            lastMessageTimer = holdTimer
+                        default:
+                            console.log(e.data)
+                    }
+                } else {
+                    if (e.data.keepaliveTimer != 0) {
+                        keepaliveTimer = e.data.keepaliveTimer
+                    }
+                    if (e.data.holdTimer) {
+                        holdTimer = e.data.holdTimer
+                        lastMessageTimer = holdTimer
+                    }
+                    if (e.data.state != ""){
+                        state = e.data.state;
+                    }
                 }
             } else {
                 console.log(e.type, e)
