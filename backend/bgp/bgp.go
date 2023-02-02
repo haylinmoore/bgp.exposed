@@ -103,6 +103,11 @@ main:
 						Communities: communities,
 					})
 				}
+				if len(route.LargeCommunities) > 0 {
+					pa = append(pa, messages.BGPAttribute_LARGECOMMUNITIES{
+						Communities: route.LargeCommunities,
+					})
+				}
 
 				announcement.PathAttributes = pa
 
