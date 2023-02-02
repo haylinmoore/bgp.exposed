@@ -3,6 +3,8 @@ github.com/andybalholm/brotli v1.0.4 h1:V7DdXeJtZscaqfNuAdSRuRFzuiKlHSC/Zh3zl9qY
 github.com/andybalholm/brotli v1.0.4/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=
 github.com/bgptools/fgbgp v0.0.0-20220502151704-9c60f0cb172a h1:sgi9Qju58MHhLykNlEuPS310pZ8QWfanDhzqw+YcwxQ=
 github.com/bgptools/fgbgp v0.0.0-20220502151704-9c60f0cb172a/go.mod h1:5D29+GacKKidjpoqN4bO4tw2s6UQYeYdgipySZ+wJbM=
+github.com/bgptools/fgbgp v0.0.0-20230105113854-4e4f65324997 h1:iWV1q95HtKCGEa5IEFfZLodFUHAtvuo1W91OD9E8XyU=
+github.com/bgptools/fgbgp v0.0.0-20230105113854-4e4f65324997/go.mod h1:l1wCNMoowhZ456DWLdQGH/jLyPB4t40vkZl1/d/HYfU=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
