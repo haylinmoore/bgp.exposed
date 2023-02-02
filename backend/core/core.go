@@ -41,8 +41,11 @@ func ClientHandler(c *websocket.Conn) {
 
 	started := make(chan bool, 1)
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Start a goroutine to handle messages from the bgp server
 	go func() {
 		log.Tracef("[ClientHandler %p][peer->web] waiting for bgp server peer create", &c)
+		// Don't do anything until we get a message on the "started" channel
 		<-started
 
 		go func() {
@@ -51,10 +54,12 @@ func ClientHandler(c *websocket.Conn) {
 				select {
 				case val := <-peer.SendChan:
 					log.Tracef("[ClientHandler %p][peer->web] received message from peer, passing to client: %+v", &c, val)
+					// take received data, convert to JSON, and send over the WS to the client
 					data, _ := json.Marshal(val)
 					c.WriteMessage(1, data)
 				case <-ctx.Done():
 					log.Debugf("[ClientHandler %p][peer->web] websocket closed, ending goroutine", &c)
+					// If WS closes, return
 					return
 				}
 			}
@@ -63,6 +68,7 @@ func ClientHandler(c *websocket.Conn) {
 
 	log.Tracef("[ClientHandler %p] starting main loop for processing web->peer websocket messages", &c)
 	for {
+		// Receive a message over the WS
 		_, message, err := c.ReadMessage()
 		log.Tracef("[ClientHandler %p] received message: %s", &c, message)
 		if err != nil {
@@ -70,25 +76,32 @@ func ClientHandler(c *websocket.Conn) {
 			break
 		}
 
+		// Unpack it into the Packet struct
 		var packet common.Packet
 		if err := json.Unmarshal(message, &packet); err != nil {
 			log.Warnf("[ClientHandler %p] error unmarshalling packet, discarding: %s", &c, err)
 			continue
 		}
 
+		// Grab just the "data" field in JSON form
 		data, err := json.Marshal(packet.Data)
 		if err != nil {
 			log.Warnf("[ClientHandler %p] error marshalling packet data, discarding: %s", &c, err)
 			continue
 		}
+
+		// If we haven't already created a BGP server, and we get a CreateRequest packet...
 		if peer == nil && packet.Type == "CreateRequest" {
 			log.Tracef("[ClientHandler %p] packet is CreateRequest", &c)
+			// Unpack packet's "data" field into a struct
 			v := common.CreateRequest{}
 			if err := json.Unmarshal(data, &v); err != nil {
 				log.Warnf("[ClientHandler %p] error unmarshalling CreateRequest, discarding: %s", &c, err)
 				break
 			}
 			log.Infof("[ClientHandler %p] %s requested to create peer on bgp server: %+v", &c, c.RemoteAddr().String(), v)
+
+			// Create the BGP server using the data we extracted
 			peer, err = server.CreatePeer(&v, ctx, cancel)
 			if err != nil {
 				log.Warnf("[ClientHandler %p] peer create failed: %s", &c, err)
@@ -101,20 +114,26 @@ func ClientHandler(c *websocket.Conn) {
 				c.WriteMessage(1, data)
 			} else {
 				log.Tracef("[ClientHandler %p] peer create succeeded, sending message to peer->web goroutine and starting peer handler", &c)
+				// Signal to peer->web goroutine that it should start listening for messages
 				started <- true
+
+				// Start the BGP server in another goroutine
 				go peer.Handler()
 			}
+		// If we've already created a BGP server, we can check for other packet types
 		} else if peer != nil {
 			if packet.Type == "RouteData" {
 				log.Tracef("[ClientHandler %p] packet is RouteData", &c)
+				// Unpack packet's "data" field into a struct
 				v := common.RouteData{}
 				if err := json.Unmarshal(data, &v); err != nil {
 					log.Warnf("[ClientHandler %p] error unmarshalling RouteData, discarding: %s", &c, err)
 					break
 				}
 				log.Infof("[ClientHandler %p] announcing/withdrawing routes: %+v", &c, v)
+				// Send struct to BGP server
 				peer.RoutesToAnnounce <- &v
-			}
+			} // else { ignore this packet }
 		} else {
 			log.Warnf("[ClientHandler %p] unknown packet type, discarding: %s", &c, packet.Type)
 		}
@@ -165,6 +184,7 @@ func main() {
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})
 	app.Use(cors.New())
 
+	// Use middleware to upgrade "/ws" requests to a WebSocket
 	app.Use("/ws", func(c *fiber.Ctx) error {
 		// IsWebSocketUpgrade returns true if the client
 		// requested upgrade to the WebSocket protocol.
@@ -175,7 +195,10 @@ func main() {
 		return fiber.ErrUpgradeRequired
 	})
 
+	// Serve requests to /ws via ClientHandler
 	app.Get("/ws/", websocket.New(ClientHandler))
+
+	// Serve static "routesets.json" file
 	app.Get("/routesets.json", func(c *fiber.Ctx) error {
 		c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSONCharsetUTF8)
 		return c.Send(routesets)
