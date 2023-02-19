@@ -22,7 +22,7 @@
 
     let routesets = [];
 
-    let endpoint = "http://localhost:8080/"
+    let endpoint = "http://" + window.location.hostname + ":8080/"
     if (window.location.host.includes("bgp.exposed")){
         endpoint = window.location.protocol+"//"+window.location.host+"/api/"
     }
