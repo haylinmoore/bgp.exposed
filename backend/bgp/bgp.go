@@ -254,6 +254,10 @@ func (s *BGPServer) ProcessUpdateEvent(e *messages.BGPMessageUpdate, n *fgbgp.Ne
 					uint16(c / 65536), uint16(c % 65536),
 				})
 			}
+		case messages.BGPAttribute_LARGECOMMUNITIES:
+			for _, c := range val.Communities {
+				data.LargeCommunities = append(data.LargeCommunities, c)
+			}
 		case messages.BGPAttribute_ORIGIN:
 			data.Origin = int(val.Origin)
 		case messages.BGPAttribute_ASPATH:
