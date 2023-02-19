@@ -46,7 +46,14 @@
                             path: e.data.asPath,
                             nexthop: e.data.nextHop,
                             origin: e.data.origin,
-                            communities: [], // TODO
+                            communities: e.data.communities.map(
+                                (element) => { return "[" + element.join(",") + "]"}
+                            ),
+                            largeCommunities: e.data.largeCommunities.map(
+                                (element) => {
+                                    return "[" + element.GlobalAdmin + "," + element.LocalData1 + "," + element.LocalData2 + "]"
+                                }
+                            ),
                             rpki: "invalid",
                             irr: false
                         });
