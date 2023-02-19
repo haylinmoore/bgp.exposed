@@ -36,9 +36,8 @@ type RouteData struct {
 	AsPath           []uint32                  `json:"asPath"`
 	NextHop          string                    `json:"nextHop"`
 	Communities      [][]uint16                `json:"communities"`
-	Origin           int                       `json:"origin"`
-	ExtCommunities   [][]uint32                `json:"extCommunities"`
 	LargeCommunities []messages.LargeCommunity `json:"largeCommunities"`
+	Origin           int                       `json:"origin"`
 }
 
 type NLRI struct {
