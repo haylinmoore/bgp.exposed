@@ -12,7 +12,9 @@
     let announcements = [];
     let receivedRoutes = [];
 
-    let state = "Unknown";
+    let socketConnected = false;
+    let bgpState = "Unknown";
+
     let holdTimer = 0;
     let lastMessageTimer = 0;
     let keepaliveTimer = 0;
@@ -33,6 +35,7 @@
 
         socket.onopen = function (e) {
             console.log("ws connected");
+            socketConnected = true;
         };
 
         socket.addEventListener("message", (e) => {
@@ -90,8 +93,8 @@
                         lastMessageTimer = holdTimer
                     }
                     if (e.data.state != ""){
-                        state = e.data.state;
-                        if (state == "Established"){
+                        bgpState = e.data.state;
+                        if (bgpState == "Established"){
                             receivedRoutes = []
                             for (let route of announcements){
                                 socket.send(JSON.stringify({
@@ -116,6 +119,7 @@
 
         socket.onclose = function (e) {
             console.log("ws closed");
+            socketConnected = false;
         };
 
         socket.onerror = function (e) {
@@ -338,7 +342,7 @@
     <p>
         <slot name="banner"/>
     </p>
-    {#if state == "Unknown"}
+    {#if bgpState == "Unknown"}
         <p class="banner">BGP.exposed is a ...</p>
 
         <div class="row">
@@ -352,7 +356,9 @@
         </div>
     {:else}
         <p class="banner">
-            BGP session with <b>AS{peerASN} ({peerIP})</b> State: <b>{state}</b>
+            WebSocket is <b>{socketConnected ? "Connected" : "Not Connected"}</b> <!-- TODO add a reconnect button - also, check every few seconds if we're ACTUALLY connected (e.g. after standby we might be wrong) -->
+            <br>
+            BGP session with <b>AS{peerASN} ({peerIP})</b> State: <b>{bgpState}</b>
             <br>
             Hold Timer: <b>{lastMessageTimer}</b>/<b>{holdTimer}</b> seconds, Keepalive Timer: <b>{sentLastKeepAlive}</b>/<b>{keepaliveTimer}</b>
             seconds
