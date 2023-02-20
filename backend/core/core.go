@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"regexp"
 	"time"
 
@@ -19,8 +20,12 @@ import (
 )
 
 var (
-	addr    = flag.String("addr", "0.0.0.0:8080", "http service address")
-	verbose = flag.Bool("v", false, "enable verbose logging")
+	httpAddr    = flag.String("http.addr", "0.0.0.0", "http listen address")
+	httpPort    = flag.Int("http.port", 8080, "http listen port")
+	bgpAddr     = flag.String("bgp.addr", "0.0.0.0", "bgp listen address")
+	bgpPort     = flag.Int("bgp.port", 2000, "bgp listen port")
+	bgpRouterId = flag.String("bgp.routerId", "1.1.1.1", "bgp router ID")
+	logLevel     = flag.String("log.level", "info", "log level can be trace, debug, info, warn, error, fatal, or panic")
 )
 
 var server *bgp.BGPServer
@@ -109,15 +114,32 @@ func ClientHandler(c *websocket.Conn) {
 
 func main() {
 	flag.Parse()
-	if *verbose {
+
+	switch *logLevel {
+	case "trace":
+		log.SetLevel(log.TraceLevel)
+	case "debug":
 		log.SetLevel(log.DebugLevel)
-		log.Debug("Verbose logging enabled")
+	case "info":
+		// default
+	case "warn":
+		log.SetLevel(log.WarnLevel)
+	case "error":
+		log.SetLevel(log.ErrorLevel)
+	case "fatal":
+		log.SetLevel(log.FatalLevel)
+	case "panic":
+		log.SetLevel(log.PanicLevel)
+	default:
+		log.Fatalf("Invalid log level \"%s\"", *logLevel)
 	}
+	log.Infof("Log level set to %s", *logLevel)
 
 	// Remove whitespace
 	routesets = []byte(regexp.MustCompile(`\s+`).ReplaceAllString(string(routesets), ""))
 
-	server = bgp.CreateBGPServer(1000, "0.0.0.0:2000", "1.1.1.1")
+	log.Infof("Starting BGP server on %s:%d with router ID %s", *bgpAddr, *bgpPort, *bgpRouterId)
+	server = bgp.CreateBGPServer(1000, fmt.Sprintf("%s:%d",*bgpAddr, *bgpPort), *bgpRouterId)
 
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})
 	app.Use(cors.New())
@@ -138,6 +160,6 @@ func main() {
 		return c.Send(routesets)
 	})
 
-	log.Infof("Starting API on %s", *addr)
-	log.Fatal(app.Listen(*addr))
+	log.Infof("Starting HTTP API on %s:%d", *httpAddr, *httpPort)
+	log.Fatal(app.Listen(fmt.Sprintf("%s:%d",*httpAddr, *httpPort)))
 }
