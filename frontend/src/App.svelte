@@ -345,10 +345,13 @@
         <br>
         State: <b>{bgpState}</b>
         <br>
-        Hold Timer: <b>{lastMessageTimer}</b>/<b>{holdTimer}</b> seconds, Keepalive Timer: <b>{sentLastKeepAlive}</b>/<b>{keepaliveTimer}</b>
-        seconds
+        Hold Timer: <b>{lastMessageTimer}</b>/<b>{holdTimer}</b> seconds
         <br>
-        Last UPDATE: <b>{lastUpdate}</b>, Last KEEPALIVE: <b>{lastKeepalive}</b>
+        Keepalive Timer: <b>{sentLastKeepAlive}</b>/<b>{keepaliveTimer}</b> seconds
+        <br>
+        Last UPDATE: <b>{lastUpdate}</b>
+        <br>
+        Last KEEPALIVE: <b>{lastKeepalive}</b>
     </p>
 
     <div class="row">
