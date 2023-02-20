@@ -14,6 +14,7 @@
             <th>RPKI</th>
             <th>IRR</th>
             <th>Communities</th>
+            <th>Large Communities</th>
         </tr>
         </thead>
         <tbody>
@@ -35,6 +36,7 @@
                     <td style="color: red">Not Found</td>
                 {/if}
                 <td><StringList list={route.communities}/></td>
+                <td><StringList list={route.largeCommunities}/></td>
             </tr>
         {/each}
         </tbody>

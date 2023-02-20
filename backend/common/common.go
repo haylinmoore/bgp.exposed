@@ -1,6 +1,9 @@
 package common
 
-import "strconv"
+import (
+	"strconv"
+	"github.com/bgptools/fgbgp/messages"
+)
 
 type Packet struct {
 	Type string      `json:"type"`
@@ -28,13 +31,13 @@ type UpdateRequest struct {
 }
 
 type RouteData struct {
-	Withdraws      []NLRI     `json:"withdraws"`
-	Prefixes       []NLRI     `json:"prefixes"`
-	AsPath         []uint32   `json:"asPath"`
-	NextHop        string     `json:"nextHop"`
-	Communities    [][]uint16 `json:"communities"`
-	Origin         int        `json:"origin"`
-	ExtCommunities [][]uint32 `json:"extCommunities"`
+	Withdraws        []NLRI                    `json:"withdraws"`
+	Prefixes         []NLRI                    `json:"prefixes"`
+	AsPath           []uint32                  `json:"asPath"`
+	NextHop          string                    `json:"nextHop"`
+	Communities      [][]uint16                `json:"communities"`
+	LargeCommunities []messages.LargeCommunity `json:"largeCommunities"`
+	Origin           int                       `json:"origin"`
 }
 
 type NLRI struct {

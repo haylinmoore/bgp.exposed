@@ -3,7 +3,7 @@ module github.com/hamptonmoore/bgp.exposed
 go 1.18
 
 require (
-	github.com/bgptools/fgbgp v0.0.0-20220502151704-9c60f0cb172a
+	github.com/bgptools/fgbgp v0.0.0-20230219102939-7610b774ff5b
 	github.com/gofiber/fiber/v2 v2.35.0
 	github.com/gofiber/websocket/v2 v2.0.23
 	github.com/sirupsen/logrus v1.8.1

@@ -46,7 +46,14 @@
                             path: e.data.asPath,
                             nexthop: e.data.nextHop,
                             origin: e.data.origin,
-                            communities: [], // TODO
+                            communities: e.data.communities.map(
+                                (element) => { return "[" + element.join(",") + "]" }
+                            ),
+                            largeCommunities: e.data.largeCommunities.map(
+                                (element) => {
+                                    return "[" + element.GlobalAdmin + "," + element.LocalData1 + "," + element.LocalData2 + "]"
+                                }
+                            ),
                             rpki: "invalid",
                             irr: false
                         });
@@ -173,6 +180,8 @@
     let newAnnouncementPrefix = "192.0.2.0/24";
     let newAnnouncementNextHop = "192.168.100.100";
     let newAnnouncementPath = "65510, 65530, 65500";
+    let newAnnouncementCommunities = "";
+    let newAnnouncementLargeCommunities = "";
 
     function routesetBind(name){
         return function(check){
@@ -253,6 +262,26 @@
                 prefixes: [{prefix: newAnnouncementPrefix, id: routeID}],
                 asPath: pathArray,
                 nextHop: newAnnouncementNextHop,
+                communities: newAnnouncementCommunities
+                        .replace(/\s+/g, '')
+                        .replace(/[\[\]]]+/g, '')
+                        .split(',')
+                        .map((element) => {
+                            let split = element.split(':');
+                            return [Number(split[0]), Number(split[1])];
+                        }),
+                largeCommunities: newAnnouncementLargeCommunities
+                        .replace(/\s+/g, '')
+                        .replace(/[\[\]]]+/g, '')
+                        .split(',')
+                        .map((element) => {
+                            let split = element.split(':');
+                            return {
+                                GlobalAdmin: Number(split[0]),
+                                LocalData1: Number(split[1]),
+                                LocalData2: Number(split[2])
+                            };
+                        }),
                 origin: 0, // TODO
             },
         }));
@@ -262,6 +291,18 @@
             prefix: newAnnouncementPrefix,
             path: pathArray,
             nexthop: newAnnouncementNextHop,
+            communities: newAnnouncementCommunities
+                        .replace(/\s+/g, '')
+                        .replace(/[\[\]]]+/g, '')
+                        .split(',')
+                        .map((element) => { return element.split(':') })
+                        .map((element) => { return "[" + element.join(":") + "]" }),
+            largeCommunities: newAnnouncementLargeCommunities
+                        .replace(/\s+/g, '')
+                        .replace(/[\[\]]]+/g, '')
+                        .split(',')
+                        .map((element) => { return element.split(':') })
+                        .map((element) => { return "[" + element.join(":") + "]" }),
             origin: 0, // TODO
         });
         announcements = announcements; // Trigger svelte refresh
@@ -354,8 +395,13 @@
                                bind:value={newAnnouncementNextHop}/>
                     </div>
                     <Input label="Communities"
-                           placeholder="65510:65530, 65500:65500:65510"
-                           wide/>
+                           placeholder="65510:1000, 65510:1234"
+                           wide
+                           bind:value={newAnnouncementCommunities}/>
+                    <Input label="Large Communities"
+                            placeholder="65510:1000:1000, 65510:1000:1234"
+                            wide
+                            bind:value={newAnnouncementLargeCommunities}/>
                     <Input label="AS Path"
                            placeholder="65530, 65510, 65500"
                            bind:value={newAnnouncementPath}

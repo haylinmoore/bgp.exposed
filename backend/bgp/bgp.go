@@ -103,6 +103,11 @@ main:
 						Communities: communities,
 					})
 				}
+				if len(route.LargeCommunities) > 0 {
+					pa = append(pa, messages.BGPAttribute_LARGECOMMUNITIES{
+						Communities: route.LargeCommunities,
+					})
+				}
 
 				announcement.PathAttributes = pa
 
@@ -248,6 +253,10 @@ func (s *BGPServer) ProcessUpdateEvent(e *messages.BGPMessageUpdate, n *fgbgp.Ne
 				data.Communities = append(data.Communities, []uint16{
 					uint16(c / 65536), uint16(c % 65536),
 				})
+			}
+		case messages.BGPAttribute_LARGECOMMUNITIES:
+			for _, c := range val.Communities {
+				data.LargeCommunities = append(data.LargeCommunities, c)
 			}
 		case messages.BGPAttribute_ORIGIN:
 			data.Origin = int(val.Origin)
