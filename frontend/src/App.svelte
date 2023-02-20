@@ -343,7 +343,7 @@
         <br>
         BGP Session is <b>{sessionCreated ? "Created" : "Not Created"}</b>
         <br>
-        BGP session with <b>AS{peerASN} ({peerIP})</b> State: <b>{bgpState}</b>
+        State: <b>{bgpState}</b>
         <br>
         Hold Timer: <b>{lastMessageTimer}</b>/<b>{holdTimer}</b> seconds, Keepalive Timer: <b>{sentLastKeepAlive}</b>/<b>{keepaliveTimer}</b>
         seconds
