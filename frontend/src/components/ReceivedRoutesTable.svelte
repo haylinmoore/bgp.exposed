@@ -4,7 +4,7 @@
 </script>
 
 <main>
-    <h3>Routes Received ({receivedRoutes.length})</h3>
+    <h3>Received Routes ({receivedRoutes.length})</h3>
     <table>
         <thead>
         <tr>

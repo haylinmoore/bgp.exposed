@@ -5,7 +5,7 @@
 </script>
 
 <main>
-    <h3>Current Announcements ({announcements.length})</h3>
+    <h3>Advertised Routes ({announcements.length})</h3>
     <table>
         <thead>
         <tr>
