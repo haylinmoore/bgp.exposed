@@ -1,0 +1,14 @@
+// Import all of Bootstrap's CSS
+@import "node_modules/bootstrap/scss/bootstrap";
+
+
+body {
+    font-family: monospace;
+    /*background: radial-gradient(#484848 2px, black 0);
+    background-size: 100px 100px;*/
+}
+
+
+textarea.log {
+    overflow-y: scroll;
+}

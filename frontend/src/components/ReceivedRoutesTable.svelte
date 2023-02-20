@@ -4,8 +4,8 @@
 </script>
 
 <main>
-    <h3>Routes Received ({receivedRoutes.length})</h3>
-    <table>
+    <h3>Received Routes ({receivedRoutes.length})</h3>
+    <table class="table">
         <thead>
         <tr>
             <th>Prefix</th>

@@ -5,8 +5,8 @@
 </script>
 
 <main>
-    <h3>Current Announcements ({announcements.length})</h3>
-    <table>
+    <h3>Advertised Routes ({announcements.length})</h3>
+    <table class="table">
         <thead>
         <tr>
             <td>Prefix</td>
@@ -41,10 +41,6 @@
 </main>
 
 <style>
-    main, table {
-        width: 100% !important;
-    }
-
     .delete {
         color: red;
         cursor: pointer;

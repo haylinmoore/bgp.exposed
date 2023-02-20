@@ -2,17 +2,18 @@
     import {onMount} from "svelte";
 
     import Logo from "./components/Logo.svelte";
-    import Input from "./components/Input.svelte";
-    import Button from "./components/Button.svelte";
     import AnnouncementsTable from "./components/AnnouncementsTable.svelte";
     import ReceivedRoutesTable from "./components/ReceivedRoutesTable.svelte";
-    import Checkbox from "./components/Checkbox.svelte";
     import { time_ranges_to_array } from "svelte/internal";
+
+    import './styles.scss'
 
     let announcements = [];
     let receivedRoutes = [];
 
-    let state = "Unknown";
+    let socketConnected = false;
+    let sessionCreated = false;
+    let bgpState = "Unknown";
     let holdTimer = 0;
     let lastMessageTimer = 0;
     let keepaliveTimer = 0;
@@ -33,11 +34,14 @@
 
         socket.onopen = function (e) {
             console.log("ws connected");
+            socketConnected = true;
         };
 
         socket.addEventListener("message", (e) => {
+            let message = e.data;
             e = JSON.parse(e.data)
             if (e.type === "RouteData") {
+                console.log("received ws message: " + message)
                 if (e.data.prefixes != null){
                     for (const prefix of e.data.prefixes) {
                         receivedRoutes.push({
@@ -69,14 +73,14 @@
                 if (e.data.time != undefined){
                     switch (e.data.message){
                         case "recv-keepalive": 
-                        lastKeepalive = new Date().toTimeString().split(" ")[0]
+                        lastKeepalive = new Date().toLocaleTimeString()
                         lastMessageTimer = holdTimer
                         break;
                         case "sent-keepalive": 
                         sentLastKeepAlive = keepaliveTimer;
                         break;
                         case "recv-update":
-                            lastUpdate = new Date().toTimeString().split(" ")[0]
+                            lastUpdate = new Date().toLocaleTimeString()
                             lastMessageTimer = holdTimer
                         default:
                             console.log(e.data)
@@ -90,8 +94,8 @@
                         lastMessageTimer = holdTimer
                     }
                     if (e.data.state != ""){
-                        state = e.data.state;
-                        if (state == "Established"){
+                        bgpState = e.data.state;
+                        if (bgpState == "Established"){
                             receivedRoutes = []
                             for (let route of announcements){
                                 socket.send(JSON.stringify({
@@ -116,6 +120,7 @@
 
         socket.onclose = function (e) {
             console.log("ws closed");
+            socketConnected = false;
         };
 
         socket.onerror = function (e) {
@@ -154,27 +159,39 @@
         if (lastMessageTimer > 0){
             lastMessageTimer--
         }
-    }, 1000)
+    }, 1000) // TODO set this higher based on timers
 
-    function createSession() {
-        if (socket.readyState != 1) {
-            alert("Websocket connection to the backend is down. Please reload or try again later")
-            return;
+    let md5Password;
+    let addPath;
+    let fullTable;
+
+    function createOrUpdateSession() {
+        if(!sessionCreated) {
+            localStorage.setItem("localASN", localASN)
+            localStorage.setItem("peerIP", peerIP)
+            localStorage.setItem("peerASN", peerASN)
+
+            socket.send(JSON.stringify({
+                type: "CreateRequest",
+                data: {
+                    peerASN: peerASN,
+                    peerIP: peerIP,
+                    localASN: localASN
+                }
+            }));
+
+            sessionCreated = true; //TODO check for success before setting
+        } else {
+            console.log("updating existing session");
+            socket.send(JSON.stringify({
+                type: "UpdateRequest",
+                data: {
+                    md5Password: md5Password,
+                    addPath: addPath,
+                    fullTable: fullTable,
+                }
+            }));
         }
-
-        localStorage.setItem("localASN", localASN)
-        localStorage.setItem("peerIP", peerIP)
-        localStorage.setItem("peerASN", peerASN)
-
-        socket.send(JSON.stringify({
-            type: "CreateRequest",
-            data: {
-                peerASN: peerASN,
-                peerIP: peerIP,
-                localASN: localASN
-            }
-        }));
-
     }
 
     let newAnnouncementPrefix = "192.0.2.0/24";
@@ -184,8 +201,8 @@
     let newAnnouncementLargeCommunities = "";
 
     function routesetBind(name){
-        return function(check){
-            if (check){
+        return function(event){
+            if (event.target.checked){
                 announceRouteset(name)
             } else {
                 removeRouteset(name)
@@ -308,21 +325,6 @@
         announcements = announcements; // Trigger svelte refresh
     }
 
-    let md5Password;
-    let addPath;
-    let fullTable;
-
-    function updateSession() {
-        socket.send(JSON.stringify({
-            type: "UpdateRequest",
-            data: {
-                md5Password: md5Password,
-                addPath: addPath,
-                fullTable: fullTable,
-            }
-        }));
-    }
-
     function deleteAnnouncement(route) {
         socket.send(JSON.stringify({
             type: "RouteData",
@@ -335,100 +337,172 @@
 
 <main>
     <Logo/>
-    <p>
-        <slot name="banner"/>
-    </p>
-    {#if state == "Unknown"}
-        <p class="banner">BGP.exposed is a ...</p>
-
-        <div class="row">
-            <form on:submit|preventDefault={() => createSession()}>
-                <h3>New BGP Session</h3>
-                <Input required label="ASN" placeholder="65530" number bind:value={peerASN}/>
-                <Input required label="IP" placeholder="192.0.2.19" bind:value={peerIP}/>
-                <Input required bottomPadding label="Our ASN" placeholder="65510" number bind:value={localASN}/>
-                <Button label="Submit"/>
-            </form>
-        </div>
-    {:else}
-        <p class="banner">
-            BGP session with <b>AS{peerASN} ({peerIP})</b> State: <b>{state}</b>
-            <br>
-            Hold Timer: <b>{lastMessageTimer}</b>/<b>{holdTimer}</b> seconds, Keepalive Timer: <b>{sentLastKeepAlive}</b>/<b>{keepaliveTimer}</b>
-            seconds
-            <br>
-            Last UPDATE: <b>{lastUpdate}</b>, Last KEEPALIVE: <b>{lastKeepalive}</b>
-        </p>
-
-        <div class="row">
-            <div style="margin-right: 20px;">
-                <form on:submit|preventDefault={() => updateSession()}>
-                    <h3>Settings</h3>
-                    <div class="settingsRow">
-                    <span style="margin-bottom: 5px; margin-right: 12px">
-                        <Input label="MD5 Password" placeholder="Optional" bind:value={md5Password}/>
-                    </span>
-                        <div class="col">
-                            <Checkbox label="ADD_PATH?" bind:checked={addPath}/>
-                            <Checkbox label="Full table?" bind:checked={fullTable}/>
+    <div class="container-lg">
+        <div class="row mt-3">
+            <div class="col-lg-4">
+                <h3>Settings</h3>
+                <form>
+                    <div class="row mb-3">
+                        <label for="peer-asn" class="col-sm-4 col-form-label">Your ASN</label>
+                        <div class="col-sm-8">
+                            <input type="text" class="form-control" id="peer-asn" placeholder="65530" required bind:value={peerASN}>
                         </div>
                     </div>
-                    <Button label="Save"/>
-                </form>
+                    
+                    <div class="row mb-3">
+                        <label for="peer-ip" class="col-sm-4 col-form-label">Your IP</label>
+                        <div class="col-sm-8">
+                            <input type="text" class="form-control" id="peer-ip" placeholder="192.0.2.19" required bind:value={peerIP}>
+                        </div>
+                    </div>
 
-                <form on:submit|preventDefault={() => addAnnouncement()}>
-                    <h3>Announcements</h3>
-                    <div class="col">
-                        {#each Object.entries(routesets) as [name, rs]}
-                            <Checkbox label={name} cb={routesetBind(name)}/>
-                        {/each}
+                    <div class="row mb-3">
+                        <label for="local-asn" class="col-sm-4 col-form-label">Our ASN</label>
+                        <div class="col-sm-8">
+                            <input type="text" class="form-control" id="local-asn" placeholder="65510" required bind:value={localASN}>
+                        </div>
                     </div>
-                    <div class="row">
-                        <Input label="Prefix"
-                               placeholder="192.0.2.0/24"
-                               required
-                               bind:value={newAnnouncementPrefix}
-                               rightPadding/>
-                        <Input label="Next Hop"
-                               placeholder="203.0.113.48"
-                               required
-                               bind:value={newAnnouncementNextHop}/>
+                    
+                    <div class="row mb-3">
+                        <label for="local-ip" class="col-sm-4 col-form-label">Our IP</label>
+                        <div class="col-sm-8">
+                            <input type="text" class="form-control" id="local-ip" value="192.0.2.1" disabled> <!-- TODO populate this -->
+                        </div>
                     </div>
-                    <Input label="Communities"
-                           placeholder="65510:1000, 65510:1234"
-                           wide
-                           bind:value={newAnnouncementCommunities}/>
-                    <Input label="Large Communities"
-                            placeholder="65510:1000:1000, 65510:1000:1234"
-                            wide
-                            bind:value={newAnnouncementLargeCommunities}/>
-                    <Input label="AS Path"
-                           placeholder="65530, 65510, 65500"
-                           bind:value={newAnnouncementPath}
-                           required
-                           bottomPadding wide/>
-                    <Button label="Add"/>
+
+                    <div class="row mb-3">
+                        <label for="local-router-id" class="col-sm-4 col-form-label">Our Router ID</label>
+                        <div class="col-sm-8">
+                            <input type="text" class="form-control" id="local-router-id" value="1.1.1.1" disabled>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <label for="md5-password" class="col-sm-4 col-form-label">MD5 Password</label>
+                        <div class="col-sm-8">
+                            <input type="text" class="form-control" id="md5-password" placeholder="Optional">
+                        </div>
+                    </div>
+
+                    <fieldset class="row mb-3">
+                        <legend class="col-form-label col-sm-4 pt-0">Capabilities</legend>
+                        <div class="col-sm-8">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="add-path" bind:checked={addPath}>
+                                <label class="form-check-label" for="add-path">ADD_PATH</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="gridRadios" id="gridRadios2" value="option2">
+                                <label class="form-check-label" for="gridRadios2">
+                                    Second radio
+                                </label>
+                            </div>
+                            <div class="form-check disabled">
+                                <input class="form-check-input" type="radio" name="gridRadios" id="gridRadios3" value="option3">
+                                <label class="form-check-label" for="gridRadios3">
+                                    Third radio
+                                </label>
+                            </div>
+                        </div>
+                    </fieldset>
+                    
+                    <button type="button" class="btn btn-primary" disabled='{!socketConnected}' on:click="{createOrUpdateSession}">Save</button>
                 </form>
             </div>
+            <div class="col-lg-4">
+                <h3>Status</h3>
+                <p>
+                    WebSocket is <b><span class="{socketConnected ? "text-success" : "text-danger"}">{socketConnected ? "Connected" : "Not Connected"}</span></b> <!-- TODO add a reconnect button - also, check every few seconds if we're ACTUALLY connected (e.g. after standby we might be wrong) -->
+                    <br>
+                    BGP Session is <b><span class="{sessionCreated ? "text-success" : "text-danger"}">{sessionCreated ? "Created" : "Not Created"}</span></b>
+                    <br>
+                    State: <b>{bgpState}</b>
+                    <br>
+                    Hold Timer: <b>{lastMessageTimer}</b>/<b>{holdTimer}</b> seconds
+                    <br>
+                    Keepalive Timer: <b>{sentLastKeepAlive}</b>/<b>{keepaliveTimer}</b> seconds
+                    <br>
+                    Last UPDATE received: <b>{lastUpdate}</b>
+                    <br>
+                    Last KEEPALIVE received: <b>{lastKeepalive}</b>
+                </p>
+            </div>
+            <div class="col-lg-4">
+                <h3>Log</h3>
+                <div class="mb-3">
+                    <textarea class="form-control log" id="log" rows="15" value="example text" disabled></textarea>
+                </div>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-lg-6">
+                <h3>Announcements</h3>
+                <fieldset class="row mb-3">
+                    <legend class="col-form-label col-sm-4 pt-0">Route Sets</legend>
+                    <div class="col-sm-8">
+                        {#each Object.entries(routesets) as [name, rs]}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="{name}" on:change={routesetBind(name)}>
+                            <label class="form-check-label" for="{name}">{name}</label>
+                        </div>
+                    {/each}
+                    </div>
+                </fieldset>
+                <form>
+                    <h4>Custom Prefix</h4>
+                    <div class="row mb-3">
+                        <label for="new-announcement-prefix" class="col-sm-4 col-form-label">Prefix</label>
+                        <div class="col-sm-8">
+                            <input type="text" class="form-control" id="new-announcement-prefix" placeholder="192.0.2.0/24" required bind:value={newAnnouncementPrefix}>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <label for="new-announcement-next-hop" class="col-sm-4 col-form-label">Next Hop</label>
+                        <div class="col-sm-8">
+                            <input type="text" class="form-control" id="new-announcement-next-hop" placeholder="203.0.113.48" required bind:value={newAnnouncementNextHop}>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <label for="new-announcement-communities" class="col-sm-4 col-form-label">Communities</label>
+                        <div class="col-sm-8">
+                            <input type="text" class="form-control" id="new-announcement-communities" placeholder="65510:1000, 65510:1234" bind:value={newAnnouncementCommunities}>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <label for="new-announcement-large-communities" class="col-sm-4 col-form-label">Large Communities</label>
+                        <div class="col-sm-8">
+                            <input type="text" class="form-control" id="new-announcement-large-communities" placeholder="65510:1000:1000, 65510:1000:1234" bind:value={newAnnouncementLargeCommunities}>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <label for="new-announcement-as-path" class="col-sm-4 col-form-label">AS Path</label>
+                        <div class="col-sm-8">
+                            <input type="text" class="form-control" id="new-announcement-as-path" placeholder="65530, 65510, 65500" required bind:value={newAnnouncementPath}>
+                        </div>
+                    </div>
 
-            <div>
+                    <button type="button" class="btn btn-primary" on:click="{addAnnouncement}">Add</button>
+                </form>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-12">
                 <AnnouncementsTable bind:announcements deleteCallback={deleteAnnouncement}/>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-12">
                 <ReceivedRoutesTable bind:receivedRoutes/>
             </div>
         </div>
-    {/if}
+    </div>
 </main>
 
-<style>
-    main {
-        margin: 50px auto;
-        padding-left: 50px;
-        padding-right: 50px;
-    }
 
-    .settingsRow {
-        display: flex;
-        flex-direction: row;
-        align-items: flex-end;
-    }
+<style>
+
 </style>
