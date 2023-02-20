@@ -73,14 +73,14 @@
                 if (e.data.time != undefined){
                     switch (e.data.message){
                         case "recv-keepalive": 
-                        lastKeepalive = new Date().toTimeString().split(" ")[0]
+                        lastKeepalive = new Date().toLocaleTimeString();
                         lastMessageTimer = holdTimer
                         break;
                         case "sent-keepalive": 
                         sentLastKeepAlive = keepaliveTimer;
                         break;
                         case "recv-update":
-                            lastUpdate = new Date().toTimeString().split(" ")[0]
+                            lastUpdate = new Date().toLocaleTimeString();
                             lastMessageTimer = holdTimer
                         default:
                             console.log(e.data)
