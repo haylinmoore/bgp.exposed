@@ -25,7 +25,7 @@ var (
 	bgpAddr      = flag.String("bgp.addr", "0.0.0.0", "BGP listen address")
 	bgpPort      = flag.Int("bgp.port", 2000, "BGP listen port")
 	bgpRouterId  = flag.String("bgp.routerId", "1.1.1.1", "BGP router ID")
-	logLevel     = flag.String("log.level", "info", "Log level can be trace, debug, info, warn, error, fatal, or panic")
+	logLevel     = flag.String("log.level", "info", "Log level can be trace, debug, info, warn, or error")
 	logTimestamp = flag.Bool("log.timestamp", true, "Show timestamp in logs. Disable if you are using an external logging system like systemd.")
 )
 
@@ -151,10 +151,6 @@ func main() {
 		log.SetLevel(logrus.WarnLevel)
 	case "error":
 		log.SetLevel(logrus.ErrorLevel)
-	case "fatal":
-		log.SetLevel(logrus.FatalLevel)
-	case "panic":
-		log.SetLevel(logrus.PanicLevel)
 	default:
 		log.Fatalf("Invalid log level \"%s\"", *logLevel)
 	}
