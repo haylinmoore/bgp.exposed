@@ -11,8 +11,10 @@ import (
 	"github.com/bgptools/fgbgp/messages"
 	fgbgp "github.com/bgptools/fgbgp/server"
 	"github.com/hamptonmoore/bgp.exposed/backend/common"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
+
+var log *logrus.Logger
 
 type Peer struct {
 	Key              string
@@ -38,15 +40,25 @@ func (p *Peer) Log(msg string) {
 	}
 }
 
+func (p *Peer) ToKey() string {
+	return p.PeerIP + "|" + strconv.FormatUint(uint64(p.PeerASN), 10)
+}
+
 func (p *Peer) Handler() {
 	// Wait for the peer to raise
+	log.Tracef("[Handler %s] Waiting for peer to come up", p.ToKey())
 	<-p.KeepAlive
+
+	log.Tracef("[Handler %s] Peer came up", p.ToKey())
+
 	p.Log("recv-keepalive")
 	p.Log("sent-keepalive")
 main:
 	for {
 		select {
 		case <-p.Context.Done():
+			log.Tracef("[Handler %s] Websocket closed", p.ToKey())
+
 			p.SendChan <- &common.Packet{
 				Type: "FSMUpdate",
 				Data: common.FSMUpdate{
@@ -59,19 +71,20 @@ main:
 			p.Server.PeerLock.Lock()
 			delete(p.Server.Peers, p.Key)
 			p.Server.PeerLock.Unlock()
-			log.Println("Deleted")
+			log.Tracef("[Handler %s] Peer deleted", p.ToKey())
 			break main
 		case <-time.After(time.Second * 30):
 			p.KeepAlive <- &messages.BGPMessageKeepAlive{}
 		case <-p.KeepAlive:
+			log.Tracef("[Handler %s] Sending KEEPALIVE", p.ToKey())
 			if p.Neighbor != nil {
 				p.Neighbor.OutQueue <- messages.BGPMessageKeepAlive{}
 				p.Log("sent-keepalive")
 			}
 		case route := <-p.RoutesToAnnounce:
-			log.Println(route)
 			announcement := &messages.BGPMessageUpdate{}
 			if len(route.Withdraws) > 0 {
+				log.Tracef("[Handler %s] Withdrawing routes: %+v", p.ToKey(), route.Withdraws)
 				for _, prefix := range route.Withdraws {
 					_, pref, _ := net.ParseCIDR(prefix.Prefix)
 
@@ -82,6 +95,7 @@ main:
 				}
 			}
 			if len(route.Prefixes) > 0 {
+				log.Tracef("[Handler %s] Announcing routes: %+v", p.ToKey(), route.Prefixes)
 				pa := []messages.BGPAttributeIf{
 					messages.BGPAttribute_ORIGIN{
 						Origin: byte(route.Origin),
@@ -131,23 +145,27 @@ type BGPServer struct {
 	Peers    map[string]*Peer
 }
 
+func neighborToKey(n *fgbgp.Neighbor) string {
+	return n.Addr.String() + "|" + strconv.FormatUint(uint64(n.PeerASN), 10)
+}
+
 func (s *BGPServer) GetPeerFromNeigh(n *fgbgp.Neighbor) (*Peer, bool) {
 	s.PeerLock.Lock()
-	key := n.Addr.String() + "|" + strconv.FormatUint(uint64(n.PeerASN), 10)
 	defer s.PeerLock.Unlock()
 
-	peer, ok := s.Peers[key]
+	peer, ok := s.Peers[neighborToKey(n)]
 	return peer, ok
 }
 
 func (s *BGPServer) CreatePeer(request *common.CreateRequest, ctx context.Context, cancel context.CancelFunc) (*Peer, error) {
-	log.Debugf("Creating peer %s", request.PeerIP)
+	log.Tracef("[CreatePeer] Creating peer %+v", request)
 
 	s.PeerLock.Lock()
 	defer s.PeerLock.Unlock()
 
-	_, exists := s.Peers[request.ToKey()]
+	existingPeer, exists := s.Peers[request.ToKey()]
 	if exists {
+		log.Debugf("[CreatePeer] Peer with key %s already exists: %+v", request.ToKey(), existingPeer)
 		return nil, errors.New("Peer already exists")
 	}
 
@@ -170,16 +188,18 @@ func (s *BGPServer) CreatePeer(request *common.CreateRequest, ctx context.Contex
 		},
 	}
 	s.Peers[request.ToKey()] = peer
+
+	log.Tracef("[CreatePeer] Peer created successfully %+v", request)
+
 	return peer, nil
 }
 
 func (s *BGPServer) Notification(msg *messages.BGPMessageNotification, n *fgbgp.Neighbor) bool {
-	log.Printf("Notification: %v", msg)
+	log.Debugf("[Notification %s] Received NOTIFICATION message: %+v", neighborToKey(n), msg)
 	return true
 }
 
 func (s *BGPServer) ProcessReceived(msg interface{}, n *fgbgp.Neighbor) (bool, error) {
-	// log.Printf("ProcessReceived: %s", msg)
 	n.LocalLastKeepAliveRecv = time.Now()
 	switch v := msg.(type) {
 	case *messages.BGPMessageOpen:
@@ -190,6 +210,7 @@ func (s *BGPServer) ProcessReceived(msg interface{}, n *fgbgp.Neighbor) (bool, e
 		if ok {
 			n.ASN = peer.LocalASN
 			peer.Neighbor = n
+			log.Debugf("[ProcessReceived %s] Received OPEN message: %+v", neighborToKey(n), msg)
 			peer.SendChan <- &common.Packet{
 				Type: "FSMUpdate",
 				Data: common.FSMUpdate{
@@ -198,30 +219,38 @@ func (s *BGPServer) ProcessReceived(msg interface{}, n *fgbgp.Neighbor) (bool, e
 			}
 			return true, nil
 		} else {
+			n.PeerASN = uint32(v.ASN)
+			log.Debugf("[ProcessReceived %s] Received OPEN message for nonexistent peer: %+v", neighborToKey(n), msg)
 			n.Disconnect()
 			return false, errors.New("no peer exists")
 		}
 	case *messages.BGPMessageKeepAlive:
 		peer, ok := s.GetPeerFromNeigh(n)
 		if ok {
+			log.Tracef("[ProcessReceived %s] Received KEEPALIVE message", neighborToKey(n))
 			peer.Log("recv-keepalive")
 			peer.KeepAlive <- v
+		} else {
+			log.Errorf("[ProcessReceived %s] Received KEEPALIVE message for nonexistent peer???", neighborToKey(n))
 		}
 	}
 	return true, nil
 }
 
 func (s *BGPServer) ProcessSend(v interface{}, n *fgbgp.Neighbor) (bool, error) {
-	log.Printf("ProcessSend: %v", v)
+	// since we're passive, does this ever get called?
+	log.Debugf("[ProcessSend %s]: %v", neighborToKey(n), v)
 	return true, nil
 }
 
 func (s *BGPServer) ProcessUpdateEvent(e *messages.BGPMessageUpdate, n *fgbgp.Neighbor) (add bool) {
 	peer, exists := s.GetPeerFromNeigh(n)
 	if !exists {
-		log.Println("PEER DOESN'T EXIST??", n.Addr.String(), n.PeerASN)
+		log.Errorf("[ProcessUpdateEvent %s] Got UPDATE message for nonexistent peer???", neighborToKey(n))
 		return false
 	}
+
+	log.Debugf("[ProcessUpdateEvent %s] Got UPDATE message. Adding prefixes %v, removing prefixes %v, with attributes %v", neighborToKey(n), e.NLRI, e.WithdrawnRoutes, e.PathAttributes)
 	peer.Log("recv-update")
 
 	data := common.RouteData{}
@@ -265,6 +294,7 @@ func (s *BGPServer) ProcessUpdateEvent(e *messages.BGPMessageUpdate, n *fgbgp.Ne
 		}
 	}
 
+	log.Tracef("[ProcessUpdateEvent %s] Sending RouteData to client", neighborToKey(n))
 	peer.SendChan <- &common.Packet{
 		Type: "RouteData",
 		Data: data,
@@ -275,20 +305,23 @@ func (s *BGPServer) ProcessUpdateEvent(e *messages.BGPMessageUpdate, n *fgbgp.Ne
 func (s *BGPServer) DisconnectedNeighbor(n *fgbgp.Neighbor) {
 	peer, ok := s.GetPeerFromNeigh(n)
 	if ok {
+		log.Infof("[DisconnectedNeighbor %s] Neighbor is down", neighborToKey(n))
 		peer.SendChan <- &common.Packet{
 			Type: "FSMUpdate",
 			Data: common.FSMUpdate{
 				State: "Idle",
 			},
 		}
+	} else {
+		log.Debugf("[DisconnectedNeighbor %s] Disconnected neighbor for nonexistent peer", neighborToKey(n))
 	}
-	log.Printf("DISCONNECTED %v\n", n)
 }
 
 func (s *BGPServer) NewNeighbor(on *messages.BGPMessageOpen, n *fgbgp.Neighbor) bool {
 	n.LocalEnableKeepAlive = true
 	peer, ok := s.GetPeerFromNeigh(n)
 	if ok {
+		log.Infof("[NewNeighbor %s] Neighbor is up", neighborToKey(n))
 		peer.SendChan <- &common.Packet{
 			Type: "FSMUpdate",
 			Data: common.FSMUpdate{
@@ -297,14 +330,17 @@ func (s *BGPServer) NewNeighbor(on *messages.BGPMessageOpen, n *fgbgp.Neighbor) 
 				KeepaliveTimer: uint(n.LocalHoldTime / time.Second / 3),
 			},
 		}
+	} else {
+		log.Errorf("[NewNeighbor %s] Got neighbor establishment for nonexistent peer???", neighborToKey(n))
 	}
 	return true
 }
 
 func (s *BGPServer) OpenSend(on *messages.BGPMessageOpen, n *fgbgp.Neighbor) bool {
-	log.Printf("OpenSend %v %v\n", on, n)
+	// since we're passive, does this ever get called?
 	peer, ok := s.GetPeerFromNeigh(n)
 	if ok {
+		log.Debugf("[OpenSend %s] sent message %+v", neighborToKey(n), on)
 		peer.SendChan <- &common.Packet{
 			Type: "FSMUpdate",
 			Data: common.FSMUpdate{
@@ -316,16 +352,22 @@ func (s *BGPServer) OpenSend(on *messages.BGPMessageOpen, n *fgbgp.Neighbor) boo
 	return false
 }
 
-func CreateBGPServer(asn uint32, listenAddr string, identifier string) *BGPServer {
+func CreateBGPServer(asn uint32, listenAddr string, identifier string, logger *logrus.Logger) *BGPServer {
+	log = logger
+	
+	log.Tracef("[CreateBGPServer] creating fgbgp manager")
 	manager := fgbgp.NewManager(asn, net.ParseIP(identifier), false, false)
 	manager.UseDefaultUpdateHandler(10)
 	server := &BGPServer{Fgbgp: manager, Peers: make(map[string]*Peer)}
 	manager.SetEventHandler(server)
 	manager.SetUpdateEventHandler(server)
+
+	log.Tracef("[CreateBGPServer] creating fgbgp server with listenAddr %s", listenAddr)
 	err := manager.NewServer(listenAddr)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[CreateBGPServer] failed creating fgbgp server: %s", err)
 	}
+	log.Tracef("[CreateBGPServer] starting fgbgp server")
 	manager.StartServers()
 
 	return server
