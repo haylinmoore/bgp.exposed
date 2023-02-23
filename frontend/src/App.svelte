@@ -12,7 +12,10 @@
     let announcements = [];
     let receivedRoutes = [];
 
-    let state = "Unknown";
+    let socketConnected = false;
+    let sessionCreated = false;
+    let bgpState = "Unknown";
+
     let holdTimer = 0;
     let lastMessageTimer = 0;
     let keepaliveTimer = 0;
@@ -33,6 +36,7 @@
 
         socket.onopen = function (e) {
             console.log("ws connected");
+            socketConnected = true;
         };
 
         socket.addEventListener("message", (e) => {
@@ -69,14 +73,14 @@
                 if (e.data.time != undefined){
                     switch (e.data.message){
                         case "recv-keepalive": 
-                        lastKeepalive = new Date().toTimeString().split(" ")[0]
+                        lastKeepalive = new Date().toLocaleTimeString();
                         lastMessageTimer = holdTimer
                         break;
                         case "sent-keepalive": 
                         sentLastKeepAlive = keepaliveTimer;
                         break;
                         case "recv-update":
-                            lastUpdate = new Date().toTimeString().split(" ")[0]
+                            lastUpdate = new Date().toLocaleTimeString();
                             lastMessageTimer = holdTimer
                         default:
                             console.log(e.data)
@@ -90,8 +94,8 @@
                         lastMessageTimer = holdTimer
                     }
                     if (e.data.state != ""){
-                        state = e.data.state;
-                        if (state == "Established"){
+                        bgpState = e.data.state;
+                        if (bgpState == "Established"){
                             receivedRoutes = []
                             for (let route of announcements){
                                 socket.send(JSON.stringify({
@@ -116,6 +120,7 @@
 
         socket.onclose = function (e) {
             console.log("ws closed");
+            socketConnected = false;
         };
 
         socket.onerror = function (e) {
@@ -156,25 +161,35 @@
         }
     }, 1000)
 
-    function createSession() {
-        if (socket.readyState != 1) {
-            alert("Websocket connection to the backend is down. Please reload or try again later")
-            return;
+    let md5Password;
+    let addPath;
+    let fullTable;
+
+    function createOrUpdateSession() {
+        if(!sessionCreated) {
+            localStorage.setItem("localASN", localASN)
+            localStorage.setItem("peerIP", peerIP)
+            localStorage.setItem("peerASN", peerASN)
+            socket.send(JSON.stringify({
+                type: "CreateRequest",
+                data: {
+                    peerASN: peerASN,
+                    peerIP: peerIP,
+                    localASN: localASN
+                }
+            }));
+            sessionCreated = true; //TODO check for success before setting
+        } else {
+            console.log("updating existing session");
+            socket.send(JSON.stringify({
+                type: "UpdateRequest",
+                data: {
+                    md5Password: md5Password,
+                    addPath: addPath,
+                    fullTable: fullTable,
+                }
+            }));
         }
-
-        localStorage.setItem("localASN", localASN)
-        localStorage.setItem("peerIP", peerIP)
-        localStorage.setItem("peerASN", peerASN)
-
-        socket.send(JSON.stringify({
-            type: "CreateRequest",
-            data: {
-                peerASN: peerASN,
-                peerIP: peerIP,
-                localASN: localASN
-            }
-        }));
-
     }
 
     let newAnnouncementPrefix = "192.0.2.0/24";
@@ -308,21 +323,6 @@
         announcements = announcements; // Trigger svelte refresh
     }
 
-    let md5Password;
-    let addPath;
-    let fullTable;
-
-    function updateSession() {
-        socket.send(JSON.stringify({
-            type: "UpdateRequest",
-            data: {
-                md5Password: md5Password,
-                addPath: addPath,
-                fullTable: fullTable,
-            }
-        }));
-    }
-
     function deleteAnnouncement(route) {
         socket.send(JSON.stringify({
             type: "RouteData",
@@ -338,85 +338,93 @@
     <p>
         <slot name="banner"/>
     </p>
-    {#if state == "Unknown"}
-        <p class="banner">BGP.exposed is a ...</p>
+    <p class="banner">
+        WebSocket is <b>{socketConnected ? "Connected" : "Not Connected"}</b> <!-- TODO add a reconnect button - also, check every few seconds if we're ACTUALLY connected (e.g. after standby we might be wrong) -->
+        <br>
+        BGP Session is <b>{sessionCreated ? "Created" : "Not Created"}</b>
+        <br>
+        State: <b>{bgpState}</b>
+        <br>
+        Hold Timer: <b>{lastMessageTimer}</b>/<b>{holdTimer}</b> seconds
+        <br>
+        Keepalive Timer: <b>{sentLastKeepAlive}</b>/<b>{keepaliveTimer}</b> seconds
+        <br>
+        Last UPDATE: <b>{lastUpdate}</b>
+        <br>
+        Last KEEPALIVE: <b>{lastKeepalive}</b>
+    </p>
 
-        <div class="row">
-            <form on:submit|preventDefault={() => createSession()}>
-                <h3>New BGP Session</h3>
-                <Input required label="ASN" placeholder="65530" number bind:value={peerASN}/>
-                <Input required label="IP" placeholder="192.0.2.19" bind:value={peerIP}/>
-                <Input required bottomPadding label="Our ASN" placeholder="65510" number bind:value={localASN}/>
-                <Button label="Submit"/>
-            </form>
-        </div>
-    {:else}
-        <p class="banner">
-            BGP session with <b>AS{peerASN} ({peerIP})</b> State: <b>{state}</b>
-            <br>
-            Hold Timer: <b>{lastMessageTimer}</b>/<b>{holdTimer}</b> seconds, Keepalive Timer: <b>{sentLastKeepAlive}</b>/<b>{keepaliveTimer}</b>
-            seconds
-            <br>
-            Last UPDATE: <b>{lastUpdate}</b>, Last KEEPALIVE: <b>{lastKeepalive}</b>
-        </p>
-
-        <div class="row">
-            <div style="margin-right: 20px;">
-                <form on:submit|preventDefault={() => updateSession()}>
-                    <h3>Settings</h3>
-                    <div class="settingsRow">
+    <div class="row">
+        <div style="margin-right: 20px;">
+            <form on:submit|preventDefault={() => createOrUpdateSession()}>
+                <h3>Settings</h3>
+                <div class="settingsRow">
+                    <span style="margin-bottom: 5px; margin-right: 12px">
+                        <Input required label="ASN" placeholder="65530" number bind:value={peerASN}/>
+                    </span>
+                </div>
+                <div class="settingsRow">
+                    <span style="margin-bottom: 5px; margin-right: 12px">
+                        <Input required label="IP" placeholder="192.0.2.19" bind:value={peerIP}/>
+                    </span>
+                </div>
+                <div class="settingsRow">
+                    <span style="margin-bottom: 5px; margin-right: 12px">
+                        <Input required bottomPadding label="Our ASN" placeholder="65510" number bind:value={localASN}/>
+                    </span>
+                </div>
+                <div class="settingsRow">
                     <span style="margin-bottom: 5px; margin-right: 12px">
                         <Input label="MD5 Password" placeholder="Optional" bind:value={md5Password}/>
                     </span>
-                        <div class="col">
-                            <Checkbox label="ADD_PATH?" bind:checked={addPath}/>
-                            <Checkbox label="Full table?" bind:checked={fullTable}/>
-                        </div>
-                    </div>
-                    <Button label="Save"/>
-                </form>
-
-                <form on:submit|preventDefault={() => addAnnouncement()}>
-                    <h3>Announcements</h3>
                     <div class="col">
-                        {#each Object.entries(routesets) as [name, rs]}
-                            <Checkbox label={name} cb={routesetBind(name)}/>
-                        {/each}
+                        <Checkbox label="ADD_PATH?" bind:checked={addPath}/>
+                        <Checkbox label="Full table?" bind:checked={fullTable}/>
                     </div>
-                    <div class="row">
-                        <Input label="Prefix"
-                               placeholder="192.0.2.0/24"
-                               required
-                               bind:value={newAnnouncementPrefix}
-                               rightPadding/>
-                        <Input label="Next Hop"
-                               placeholder="203.0.113.48"
-                               required
-                               bind:value={newAnnouncementNextHop}/>
-                    </div>
-                    <Input label="Communities"
-                           placeholder="65510:1000, 65510:1234"
-                           wide
-                           bind:value={newAnnouncementCommunities}/>
-                    <Input label="Large Communities"
-                            placeholder="65510:1000:1000, 65510:1000:1234"
-                            wide
-                            bind:value={newAnnouncementLargeCommunities}/>
-                    <Input label="AS Path"
-                           placeholder="65530, 65510, 65500"
-                           bind:value={newAnnouncementPath}
-                           required
-                           bottomPadding wide/>
-                    <Button label="Add"/>
-                </form>
-            </div>
+                </div>
+                <Button label="Save"/>
+            </form>
 
-            <div>
-                <AnnouncementsTable bind:announcements deleteCallback={deleteAnnouncement}/>
-                <ReceivedRoutesTable bind:receivedRoutes/>
-            </div>
+            <form on:submit|preventDefault={() => addAnnouncement()}>
+                <h3>Announcements</h3>
+                <div class="col">
+                    {#each Object.entries(routesets) as [name, rs]}
+                        <Checkbox label={name} cb={routesetBind(name)}/>
+                    {/each}
+                </div>
+                <div class="row">
+                    <Input label="Prefix"
+                            placeholder="192.0.2.0/24"
+                            required
+                            bind:value={newAnnouncementPrefix}
+                            rightPadding/>
+                    <Input label="Next Hop"
+                            placeholder="203.0.113.48"
+                            required
+                            bind:value={newAnnouncementNextHop}/>
+                </div>
+                <Input label="Communities"
+                        placeholder="65510:1000, 65510:1234"
+                        wide
+                        bind:value={newAnnouncementCommunities}/>
+                <Input label="Large Communities"
+                        placeholder="65510:1000:1000, 65510:1000:1234"
+                        wide
+                        bind:value={newAnnouncementLargeCommunities}/>
+                <Input label="AS Path"
+                        placeholder="65530, 65510, 65500"
+                        bind:value={newAnnouncementPath}
+                        required
+                        bottomPadding wide/>
+                <Button label="Add"/>
+            </form>
         </div>
-    {/if}
+
+        <div>
+            <AnnouncementsTable bind:announcements deleteCallback={deleteAnnouncement}/>
+            <ReceivedRoutesTable bind:receivedRoutes/>
+        </div>
+    </div>
 </main>
 
 <style>
