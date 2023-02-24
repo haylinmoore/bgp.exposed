@@ -270,35 +270,40 @@
     function addAnnouncement() {
         let pathArray = newAnnouncementPath.split(" ").map(x => parseInt(x));
         let routeID = generateRouteID();
-
-        socket.send(JSON.stringify({
-            type: "RouteData",
-            data: {
+        let routeData = {
                 prefixes: [{prefix: newAnnouncementPrefix, id: routeID}],
                 asPath: pathArray,
                 nextHop: newAnnouncementNextHop,
-                communities: newAnnouncementCommunities
-                        .replace(/\s+/g, '')
-                        .replace(/[\[\]]]+/g, '')
-                        .split(',')
-                        .map((element) => {
-                            let split = element.split(':');
-                            return [Number(split[0]), Number(split[1])];
-                        }),
-                largeCommunities: newAnnouncementLargeCommunities
-                        .replace(/\s+/g, '')
-                        .replace(/[\[\]]]+/g, '')
-                        .split(',')
-                        .map((element) => {
-                            let split = element.split(':');
-                            return {
-                                GlobalAdmin: Number(split[0]),
-                                LocalData1: Number(split[1]),
-                                LocalData2: Number(split[2])
-                            };
-                        }),
                 origin: 0, // TODO
-            },
+            };
+        
+        // if we have communities, add them
+        let communitiesArray = newAnnouncementCommunities.replace(/\s+/g, '').replace(/[\[\]]]+/g, '').split(',');
+        if(communitiesArray.length > 1) {
+            routeData['communities'] = communitiesArray
+                                        .map((element) => {
+                                            let split = element.split(':');
+                                            return [Number(split[0]), Number(split[1])];
+                                        });
+        }
+
+        // if we have large communities, add them
+        let largeCommunitiesArray = newAnnouncementLargeCommunities.replace(/\s+/g, '').replace(/[\[\]]]+/g, '').split(',');
+        if(largeCommunitiesArray.length > 1) {
+            routeData['largeCommunities'] = largeCommunitiesArray
+                                            .map((element) => {
+                                                let split = element.split(':');
+                                                return {
+                                                    GlobalAdmin: Number(split[0]),
+                                                    LocalData1: Number(split[1]),
+                                                    LocalData2: Number(split[2])
+                                                };
+                                            });
+        }
+
+        socket.send(JSON.stringify({
+            type: "RouteData",
+            data: routeData,
         }));
 
         announcements.push({
