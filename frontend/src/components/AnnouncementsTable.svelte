@@ -22,7 +22,7 @@
         {#each announcements as route, i}
             <tr>
                 <td>{route.prefix}</td>
-                <td><StringList list={route.path}/></td>
+                <td>{route.path.join(" ")}</td>
                 <td>{route.nexthop}</td>
                 <td><StringList list={route.communities}/></td>
                 <td><StringList list={route.largeCommunities}/></td>

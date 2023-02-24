@@ -21,7 +21,7 @@
         {#each receivedRoutes as route}
             <tr>
                 <td>{route.prefix}</td>
-                <td><StringList list={route.path}/></td>
+                <td>{route.path.join(" ")}</td>
                 <td>{route.nexthop}</td>
                 {#if route.rpki === "valid"}
                     <td style="color: lightgreen">Valid</td>

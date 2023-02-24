@@ -194,7 +194,7 @@
 
     let newAnnouncementPrefix = "192.0.2.0/24";
     let newAnnouncementNextHop = "192.168.100.100";
-    let newAnnouncementPath = "65510, 65530, 65500";
+    let newAnnouncementPath = "65510 65530 65500";
     let newAnnouncementCommunities = "";
     let newAnnouncementLargeCommunities = "";
 
@@ -268,7 +268,7 @@
     }
 
     function addAnnouncement() {
-        let pathArray = newAnnouncementPath.split(",").map(x => parseInt(x.trim()));
+        let pathArray = newAnnouncementPath.split(" ").map(x => parseInt(x));
         let routeID = generateRouteID();
 
         socket.send(JSON.stringify({
