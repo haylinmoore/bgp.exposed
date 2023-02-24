@@ -89,40 +89,58 @@ func ClientHandler(c *websocket.Conn) {
 			log.Warnf("[ClientHandler %p] error marshalling packet data, discarding: %s", &c, err)
 			continue
 		}
-
-		// If we haven't already created a BGP server, and we get a CreateRequest packet...
-		if peer == nil && packet.Type == "CreateRequest" {
-			log.Tracef("[ClientHandler %p] packet is CreateRequest", &c)
-			// Unpack packet's "data" field into a struct
-			v := common.CreateRequest{}
-			if err := json.Unmarshal(data, &v); err != nil {
-				log.Warnf("[ClientHandler %p] error unmarshalling CreateRequest, discarding: %s", &c, err)
-				break
-			}
-			log.Infof("[ClientHandler %p] %s requested to create peer on bgp server: %+v", &c, c.RemoteAddr().String(), v)
-
-			// Create the BGP server using the data we extracted
-			peer, err = server.CreatePeer(&v, ctx, cancel)
-			if err != nil {
-				log.Warnf("[ClientHandler %p] peer create failed: %s", &c, err)
+		// If we haven't already created a BGP server
+		if peer == nil {
+			// If we get a CreateRequest packet
+			if packet.Type == "CreateRequest" {
+				log.Tracef("[ClientHandler %p] packet is CreateRequest", &c)
+				// Unpack packet's "data" field into a struct
+				v := common.CreateRequest{}
+				if err := json.Unmarshal(data, &v); err != nil {
+					log.Warnf("[ClientHandler %p] error unmarshalling CreateRequest, discarding: %s", &c, err)
+					break
+				}
+				log.Infof("[ClientHandler %p] %s requested to create peer on bgp server: %+v", &c, c.RemoteAddr().String(), v)
+				
+				// Create the BGP server using the data we extracted
+				peer, err = server.CreatePeer(&v, ctx, cancel)
+				if err != nil {
+					log.Warnf("[ClientHandler %p] peer create failed: %s", &c, err)
+					data, _ := json.Marshal(common.Packet{
+						Type: "Error",
+						Data: common.Error{
+							Message: err.Error(),
+						},
+					})
+					c.WriteMessage(1, data)
+				} else {
+					log.Tracef("[ClientHandler %p] peer create succeeded, sending message to peer->web goroutine and starting peer handler", &c)
+					started <- true
+					go peer.Handler()
+				}
+			} else {
+				log.Warnf("[ClientHandler %p] Got invalid request type for current state, discarding", &c)
 				data, _ := json.Marshal(common.Packet{
 					Type: "Error",
 					Data: common.Error{
-						Message: err.Error(),
+						Message: "Invalid request type for current state",
 					},
 				})
 				c.WriteMessage(1, data)
-			} else {
-				log.Tracef("[ClientHandler %p] peer create succeeded, sending message to peer->web goroutine and starting peer handler", &c)
-				// Signal to peer->web goroutine that it should start listening for messages
-				started <- true
-
-				// Start the BGP server in another goroutine
-				go peer.Handler()
 			}
-		// If we've already created a BGP server, we can check for other packet types
+		// If we've already created a BGP server
 		} else if peer != nil {
-			if packet.Type == "RouteData" {
+			// then a CreateRequest is not valid
+			if packet.Type == "CreateRequest" {
+				log.Warnf("[ClientHandler %p] Got CreateRequest but already created peer", &c)
+				data, _ := json.Marshal(common.Packet{
+					Type: "Error",
+					Data: common.Error{
+						Message: "Invalid request type for current state",
+					},
+				})
+				c.WriteMessage(1, data)
+			} else if packet.Type == "RouteData" {
 				log.Tracef("[ClientHandler %p] packet is RouteData", &c)
 				// Unpack packet's "data" field into a struct
 				v := common.RouteData{}
@@ -133,9 +151,9 @@ func ClientHandler(c *websocket.Conn) {
 				log.Infof("[ClientHandler %p] announcing/withdrawing routes: %+v", &c, v)
 				// Send struct to BGP server
 				peer.RoutesToAnnounce <- &v
-			} // else { ignore this packet }
-		} else {
-			log.Warnf("[ClientHandler %p] unknown packet type, discarding: %s", &c, packet.Type)
+			} else {
+				log.Warnf("[ClientHandler %p] unknown or invalid packet type, discarding: %s", &c, packet.Type)
+			}
 		}
 	}
 	if peer != nil {
