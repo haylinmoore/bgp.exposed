@@ -7,15 +7,16 @@
     export let wide = false;
     export let number = false;
     export let required = false;
+    export let disabled = false;
 </script>
 
 <main class:rightPadding class:bottomPadding>
     <p>{label}</p>
     <!-- Can't use a ternary here since type bindings don't work right -->
     {#if number}
-        <input type="number" {placeholder} {required} class:wide bind:value>
+        <input type="number" {placeholder} {required} {disabled} class:wide bind:value>
     {:else}
-        <input type="text" {placeholder} {required} class:wide bind:value>
+        <input type="text" {placeholder} {required} {disabled} class:wide bind:value>
     {/if}
 </main>
 
