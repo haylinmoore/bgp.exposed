@@ -23,6 +23,9 @@
     let lastUpdate = "Never";
     let lastKeepalive = "Never";
 
+    let ourIp = "";
+    let ourRouterId = "";
+
     let routesets = [];
 
     let endpoint = "http://" + window.location.hostname + ":8080/"
@@ -41,7 +44,10 @@
 
         socket.addEventListener("message", (e) => {
             e = JSON.parse(e.data)
-            if (e.type === "RouteData") {
+            if (e.type == "InitData") {
+                ourIp = e.data.listenIp;
+                ourRouterId = e.data.routerId;
+            } else if (e.type === "RouteData") {
                 if (e.data.prefixes != null){
                     for (const prefix of e.data.prefixes) {
                         receivedRoutes.push({
@@ -69,7 +75,7 @@
                     }
                 }
                 receivedRoutes = receivedRoutes; // Trigger svelte refresh
-            } if (e.type=="FSMUpdate") {
+            } else if (e.type=="FSMUpdate") {
                 if (e.data.time != undefined){
                     switch (e.data.message){
                         case "recv-keepalive": 
@@ -365,17 +371,23 @@
                 <h3>Settings</h3>
                 <div class="settingsRow">
                     <span style="margin-bottom: 5px; margin-right: 12px">
-                        <Input required label="ASN" placeholder="65530" number bind:value={peerASN}/>
+                        <Input required label="Our ASN" placeholder="65510" number bind:value={localASN}/>
+                    </span>
+                    <span style="margin-bottom: 5px; margin-right: 12px">
+                        <Input required label="Your ASN" placeholder="65530" number bind:value={peerASN}/>
                     </span>
                 </div>
                 <div class="settingsRow">
                     <span style="margin-bottom: 5px; margin-right: 12px">
-                        <Input required label="IP" placeholder="192.0.2.19" bind:value={peerIP}/>
+                        <Input required label="Our IP" disabled bind:value={ourIp}/>
+                    </span>
+                    <span style="margin-bottom: 5px; margin-right: 12px">
+                        <Input required label="Your IP" placeholder="192.0.2.19" bind:value={peerIP}/>
                     </span>
                 </div>
                 <div class="settingsRow">
                     <span style="margin-bottom: 5px; margin-right: 12px">
-                        <Input required bottomPadding label="Our ASN" placeholder="65510" number bind:value={localASN}/>
+                        <Input required label="Our Router ID" disabled bind:value={ourRouterId}/>
                     </span>
                 </div>
                 <div class="settingsRow">

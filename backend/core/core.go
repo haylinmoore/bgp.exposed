@@ -20,13 +20,14 @@ import (
 )
 
 var (
-	httpAddr     = flag.String("http.addr", "0.0.0.0", "HTTP listen address")
-	httpPort     = flag.Int("http.port", 8080, "HTTP listen port")
-	bgpAddr      = flag.String("bgp.addr", "0.0.0.0", "BGP listen address")
-	bgpPort      = flag.Int("bgp.port", 2000, "BGP listen port")
-	bgpRouterId  = flag.String("bgp.routerId", "1.1.1.1", "BGP router ID")
-	logLevel     = flag.String("log.level", "info", "Log level can be trace, debug, info, warn, or error")
-	logTimestamp = flag.Bool("log.timestamp", true, "Show timestamp in logs. Disable if you are using an external logging system like systemd.")
+	httpAddr      = flag.String("http.addr", "0.0.0.0", "HTTP listen address")
+	httpPort      = flag.Int("http.port", 8080, "HTTP listen port")
+	bgpAddr       = flag.String("bgp.addr", "0.0.0.0", "BGP listen address")
+	bgpPublicAddr = flag.String("bgp.publicAddr", "", "BGP public listen address. Defaults to bgp.addr but cannot be 0.0.0.0.")
+	bgpPort       = flag.Int("bgp.port", 2000, "BGP listen port")
+	bgpRouterId   = flag.String("bgp.routerId", "", "BGP router ID. Defaults to bgp.publicAddr.")
+	logLevel      = flag.String("log.level", "info", "Log level can be trace, debug, info, warn, or error")
+	logTimestamp  = flag.Bool("log.timestamp", true, "Show timestamp in logs. Disable if you are using an external logging system like systemd.")
 )
 
 var server *bgp.BGPServer
@@ -41,6 +42,16 @@ func ClientHandler(c *websocket.Conn) {
 
 	started := make(chan bool, 1)
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// send initial data to client
+	data, _ := json.Marshal(common.Packet{
+		Type: "InitData",
+		Data: common.InitData{
+			RouterId: *bgpRouterId,
+			ListenIp: *bgpPublicAddr,
+		},
+	})
+	c.WriteMessage(1, data)
 
 	// Start a goroutine to handle messages from the bgp server
 	go func() {
@@ -196,7 +207,28 @@ func main() {
 	// Remove whitespace
 	routesets = []byte(regexp.MustCompile(`\s+`).ReplaceAllString(string(routesets), ""))
 
-	log.Infof("[main] Starting BGP server on %s:%d with router ID %s", *bgpAddr, *bgpPort, *bgpRouterId)
+	// if bgp.addr is 0.0.0.0, bgp.publicAddr must be set, and we log it for clarity
+	if *bgpAddr == "0.0.0.0" {
+		if *bgpPublicAddr != "" {
+			// bgp.routerId defaults to bgp.publicAddr
+			if *bgpRouterId == "" {
+				*bgpRouterId = *bgpPublicAddr
+			}
+			log.Infof("[main] Starting BGP server on %s:%d (public IP %s) with router ID %s", *bgpAddr, *bgpPort, *bgpPublicAddr, *bgpRouterId)
+		} else {
+			log.Fatalf("Must specify non-0.0.0.0 bgp.publicAddr")
+		}
+		
+	} else {
+		*bgpPublicAddr = *bgpAddr
+
+		// bgp.routerId defaults to bgp.publicAddr
+		if *bgpRouterId == "" {
+			*bgpRouterId = *bgpPublicAddr
+		}
+		log.Infof("[main] Starting BGP server on %s:%d with router ID %s", *bgpAddr, *bgpPort, *bgpRouterId)
+	}
+
 	server = bgp.CreateBGPServer(1000, fmt.Sprintf("%s:%d",*bgpAddr, *bgpPort), *bgpRouterId, log)
 
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})
