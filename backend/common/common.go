@@ -7,7 +7,7 @@ import (
 
 type Packet struct {
 	Type string      `json:"type"`
-	Data interface{} `json:"data"` // Either CreateRequest, UpdateRequest, RouteUpdate
+	Data interface{} `json:"data"` // Either CreateRequest, UpdateRequest, RouteData, InitData
 }
 
 type CreateRequest struct {
@@ -54,4 +54,9 @@ type FSMUpdate struct {
 type Event struct {
 	Time    uint64 `json:"time"` // Epoch timestamp
 	Message string `json:"message"`
+}
+
+type InitData struct {
+	RouterId string `json:"routerId"`
+	ListenIp string `json:"listenIp"`
 }
